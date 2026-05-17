@@ -1,0 +1,4 @@
+"NSBluetoothAlwaysUsageDescription" = "Smart sensor ball uses Bluetooth to scan, connect, receive battery and punch-count data, and send gyroscope start/stop commands to your training device.";
+"NSBluetoothPeripheralUsageDescription" = "Bluetooth is required to connect to the Smart sensor ball training device.";
+"NSLocalNetworkUsageDescription" = "Network access is used to sync training records, achievements, and leaderboard data.";
+

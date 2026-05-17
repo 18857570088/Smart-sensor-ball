@@ -1,0 +1,58 @@
+workflows:
+  ios-simulator-check:
+    name: iOS simulator compile check
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Show Xcode version
+        script: xcodebuild -version
+      - name: Build without signing for simulator
+        script: |
+          xcodebuild clean build \
+            -project "SmartSensorBall.xcodeproj" \
+            -scheme "SmartSensorBall" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - ~/Library/Developer/Xcode/DerivedData/**/Build/Products/**/*.app
+
+  ios-signed-ipa:
+    name: iOS signed IPA - App Store
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: Codemagic App Store Connect API
+    environment:
+      xcode: latest
+      groups:
+        - code-signing
+      vars:
+        BUNDLE_ID: com.zclei.smartsensorball
+    scripts:
+      - name: Show Xcode version
+        script: xcodebuild -version
+      - name: Initialize keychain
+        script: keychain initialize
+      - name: Fetch or create App Store signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add signing certificates to keychain
+        script: keychain add-certificates
+      - name: Apply App Store signing profiles
+        script: xcode-project use-profiles --project "SmartSensorBall.xcodeproj"
+      - name: Build signed IPA
+        script: xcode-project build-ipa --project "SmartSensorBall.xcodeproj" --scheme "SmartSensorBall"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false

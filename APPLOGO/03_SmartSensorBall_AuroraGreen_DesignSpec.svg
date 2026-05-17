@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Smart Sensor Ball — Design Specification
+  Aurora Green Edition  ·  Color Tokens · Size Chart · Design Language
+  900 × 640 px
+-->
+<svg
+  width="900"
+  height="640"
+  viewBox="0 0 900 640"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img">
+
+  <title>Smart Sensor Ball — Aurora Green Design Specification</title>
+  <desc>极光绿版图标完整设计规范：色彩Token、输出尺寸规格、视觉元素说明、圆角规格。</desc>
+
+  <!-- ── 背景 ── -->
+  <rect width="900" height="640" fill="#030806"/>
+
+  <!-- 顶部绿色条 -->
+  <rect x="0" y="0" width="900" height="4" fill="#00FF88"/>
+
+  <!-- ── 标题区 ── -->
+  <text x="450" y="36" text-anchor="middle"
+        font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="20" font-weight="700" fill="#44FF88">Smart Sensor Ball  ·  Design Specification</text>
+  <text x="450" y="56" text-anchor="middle"
+        font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="11" fill="#2A6640">Aurora Green Edition  ·  Color Tokens  ·  Output Sizes  ·  Design Language  ·  2026</text>
+
+  <!-- 分隔线 -->
+  <line x1="32" y1="68" x2="868" y2="68" stroke="#0A2010" stroke-width="1"/>
+
+  <!-- ══════════════ COL 1: 色彩规范 ══════════════ -->
+  <text x="50" y="90" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="11" font-weight="700" fill="#00FF88" letter-spacing="1">COLOR TOKENS</text>
+
+  <!-- 色块行 helper: rect + label -->
+  <!-- 背景 -->
+  <rect x="50"  y="100" width="244" height="20" rx="4" fill="#040C08"/>
+  <text x="62"  y="114" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#4A8A5A">背景渐变起点</text>
+  <text x="290" y="114" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#040C08</text>
+
+  <rect x="50"  y="126" width="244" height="20" rx="4" fill="#081810"/>
+  <text x="62"  y="140" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#4A8A5A">背景渐变终点</text>
+  <text x="290" y="140" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#081810</text>
+
+  <!-- 反应球 -->
+  <rect x="50"  y="152" width="118" height="20" rx="4" fill="#40E090"/>
+  <rect x="174" y="152" width="120" height="20" rx="4" fill="#008840"/>
+  <text x="62"  y="166" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">反应球渐变</text>
+  <text x="290" y="166" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#40E090 → #008840</text>
+
+  <rect x="50"  y="178" width="244" height="20" rx="4" fill="#DFFFF0"/>
+  <text x="62"  y="192" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#003A18">球面嫩绿（近白）</text>
+  <text x="290" y="192" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#005A20">#DFFFF0</text>
+
+  <!-- 头带 -->
+  <rect x="50"  y="204" width="118" height="20" rx="4" fill="#1A3A24"/>
+  <rect x="174" y="204" width="120" height="20" rx="4" fill="#0A1810"/>
+  <text x="62"  y="218" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#CCFFDD">头戴固定带</text>
+  <text x="290" y="218" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#1A3A24 → #0A1810</text>
+
+  <!-- 弹力绳 -->
+  <rect x="50"  y="230" width="118" height="20" rx="4" fill="#80FFB0"/>
+  <rect x="174" y="230" width="120" height="20" rx="4" fill="#00AA55"/>
+  <text x="62"  y="244" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">弹力绳渐变</text>
+  <text x="290" y="244" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#80FFB0 → #00AA55</text>
+
+  <!-- IMU -->
+  <rect x="50"  y="256" width="244" height="20" rx="4" fill="#00FF88"/>
+  <text x="62"  y="270" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">IMU芯片节点 / X轴</text>
+  <text x="290" y="270" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">#00FF88</text>
+
+  <rect x="50"  y="282" width="244" height="20" rx="4" fill="#AAFF00"/>
+  <text x="62"  y="296" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#1A2800">IMU Y轴轨迹 / 速度线</text>
+  <text x="290" y="296" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A00">#AAFF00</text>
+
+  <rect x="50"  y="308" width="244" height="20" rx="4" fill="#00FFCC"/>
+  <text x="62"  y="322" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A20">IMU Z轴轨迹</text>
+  <text x="290" y="322" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A20">#00FFCC</text>
+
+  <!-- ECG -->
+  <rect x="50"  y="334" width="118" height="20" rx="4" fill="#00FF88"/>
+  <rect x="174" y="334" width="120" height="20" rx="4" fill="#AAFF44"/>
+  <text x="62"  y="348" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">ECG心率波渐变</text>
+  <text x="290" y="348" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#00FF88 → #AAFF44</text>
+
+  <!-- 文字 -->
+  <rect x="50"  y="360" width="244" height="20" rx="4" fill="#44FF88"/>
+  <text x="62"  y="374" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#001A08">文字 Smart Sensor Ball</text>
+  <text x="290" y="374" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#001A08">#44FF88</text>
+
+  <!-- 赛博网格 -->
+  <rect x="50"  y="386" width="244" height="20" rx="4" fill="#00FF44" opacity="0.35"/>
+  <text x="62"  y="400" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">赛博网格线</text>
+  <text x="290" y="400" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#00FF44  opacity 7%</text>
+
+  <!-- 额头接点 -->
+  <rect x="50"  y="412" width="244" height="20" rx="4" fill="#00FF88" opacity="0.88"/>
+  <text x="62"  y="426" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#002A10">额头固定接点</text>
+  <text x="290" y="426" text-anchor="end" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="10" fill="#44FF88">#00FF88  opacity 88%</text>
+
+  <!-- ── 竖分隔 ── -->
+  <line x1="322" y1="68" x2="322" y2="620" stroke="#0A2010" stroke-width="1"/>
+
+  <!-- ══════════════ COL 2: 输出规格 ══════════════ -->
+  <text x="340" y="90" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="11" font-weight="700" fill="#00FF88" letter-spacing="1">OUTPUT SPECIFICATIONS</text>
+
+  <!-- 表头 -->
+  <rect x="340" y="98" width="524" height="20" rx="4" fill="#062010"/>
+  <text x="352" y="112" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#2A8840">平台 / 用途</text>
+  <text x="560" y="112" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#2A8840">尺寸 (px)</text>
+  <text x="668" y="112" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#2A8840">圆角</text>
+  <text x="750" y="112" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#2A8840">源文件</text>
+
+  <!-- 数据行 -->
+  <rect x="340" y="122" width="524" height="18" rx="3" fill="#040C08"/>
+  <text x="352" y="134" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">App Store（iOS主图标）</text>
+  <text x="560" y="134" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">1024 × 1024</text>
+  <text x="668" y="134" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">系统自动裁切</text>
+  <text x="750" y="134" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">*_1024.svg</text>
+
+  <rect x="340" y="144" width="524" height="18" rx="3" fill="#060E08"/>
+  <text x="352" y="156" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">iPhone @3x 主屏</text>
+  <text x="560" y="156" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">180 × 180</text>
+  <text x="668" y="156" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~38 px</text>
+  <text x="750" y="156" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">*_180x180.svg</text>
+
+  <rect x="340" y="166" width="524" height="18" rx="3" fill="#040C08"/>
+  <text x="352" y="178" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">iPhone @2x 主屏</text>
+  <text x="560" y="178" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">120 × 120</text>
+  <text x="668" y="178" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~26 px</text>
+  <text x="750" y="178" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="188" width="524" height="18" rx="3" fill="#060E08"/>
+  <text x="352" y="200" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">iPhone Spotlight @3x</text>
+  <text x="560" y="200" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">120 × 120</text>
+  <text x="668" y="200" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~26 px</text>
+  <text x="750" y="200" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="210" width="524" height="18" rx="3" fill="#040C08"/>
+  <text x="352" y="222" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">iPhone 通知栏 @3x</text>
+  <text x="560" y="222" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">60 × 60</text>
+  <text x="668" y="222" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~13 px</text>
+  <text x="750" y="222" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="232" width="524" height="18" rx="3" fill="#060E08"/>
+  <text x="352" y="244" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">Android xxxhdpi 启动图标</text>
+  <text x="560" y="244" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">192 × 192</text>
+  <text x="668" y="244" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~41 px</text>
+  <text x="750" y="244" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="254" width="524" height="18" rx="3" fill="#040C08"/>
+  <text x="352" y="266" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">Android xxhdpi 启动图标</text>
+  <text x="560" y="266" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">144 × 144</text>
+  <text x="668" y="266" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~30 px</text>
+  <text x="750" y="266" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="276" width="524" height="18" rx="3" fill="#060E08"/>
+  <text x="352" y="288" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">Android xhdpi 启动图标</text>
+  <text x="560" y="288" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">96 × 96</text>
+  <text x="668" y="288" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~20 px</text>
+  <text x="750" y="288" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="298" width="524" height="18" rx="3" fill="#040C08"/>
+  <text x="352" y="310" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">Android 通知栏图标</text>
+  <text x="560" y="310" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">72 × 72</text>
+  <text x="668" y="310" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">~15 px</text>
+  <text x="750" y="310" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">从1024母版导出</text>
+
+  <rect x="340" y="320" width="524" height="18" rx="3" fill="#060E08"/>
+  <text x="352" y="332" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">设计规范文档</text>
+  <text x="560" y="332" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">900 × 640</text>
+  <text x="668" y="332" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#6AAA7A">—</text>
+  <text x="750" y="332" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#44FF88">*_DesignSpec.svg</text>
+
+  <!-- 圆角说明 -->
+  <rect x="340" y="350" width="524" height="44" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="352" y="366" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#00FF88">圆角规格说明</text>
+  <text x="352" y="383" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" fill="#4A8A5A">viewBox 坐标系圆角 rx="221"（约21.5%边长）。iOS系统自动施加蒙版，无需手动裁切。Android 建议使用 Adaptive Icon（前景层+透明背景）。</text>
+
+  <!-- ══════════════ 设计元素说明 ══════════════ -->
+  <line x1="32" y1="415" x2="868" y2="415" stroke="#0A2010" stroke-width="1"/>
+  <text x="50" y="432" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="11" font-weight="700" fill="#00FF88" letter-spacing="1">DESIGN ELEMENTS</text>
+
+  <!-- 六个元素卡片 -->
+  <rect x="50"  y="442" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="62"  y="458" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">反应球</text>
+  <text x="62"  y="471" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">径向渐变 白→嫩绿→深绿</text>
+  <text x="62"  y="483" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">高光椭圆+赤道纹路+球底阴影</text>
+  <text x="62"  y="492" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">r=102 px（1024坐标系）</text>
+
+  <rect x="198" y="442" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="210" y="458" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">头戴固定架</text>
+  <text x="210" y="471" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">双侧弧形带 + 顶部横带</text>
+  <text x="210" y="483" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">stroke-width 26–30 px</text>
+  <text x="210" y="492" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">深绿渐变 #1A3A24→#0A1810</text>
+
+  <rect x="346" y="442" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="358" y="458" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">IMU传感器芯片</text>
+  <text x="358" y="471" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">方形封装 85×85 px</text>
+  <text x="358" y="483" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">四引脚 + 矩形焊盘 + 角标</text>
+  <text x="358" y="492" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">芯片中心发光节点 r=17 px</text>
+
+  <rect x="494" y="442" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="506" y="458" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">弹力绳</text>
+  <text x="506" y="471" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">竖直段 + Q弧弹性曲线</text>
+  <text x="506" y="483" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">stroke-width 11.1 px</text>
+  <text x="506" y="492" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">绿渐变 #80FFB0→#00AA55</text>
+
+  <rect x="642" y="442" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="654" y="458" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">IMU三轴轨迹</text>
+  <text x="654" y="471" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">X轴 #00FF88 · Y轴 #AAFF00</text>
+  <text x="654" y="483" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">Z轴 #00FFCC · 两端淡出</text>
+  <text x="654" y="492" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">正弦波频率递减 X→Y→Z</text>
+
+  <rect x="50"  y="510" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="62"  y="526" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">ECG心率波</text>
+  <text x="62"  y="539" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">底部标准心电图波形</text>
+  <text x="62"  y="551" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">stroke-width 10.2 px</text>
+  <text x="62"  y="562" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">峰值节点 r=17 px 高亮</text>
+
+  <rect x="198" y="510" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="210" y="526" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">速度放射线</text>
+  <text x="210" y="539" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">3条右侧放射线</text>
+  <text x="210" y="551" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">宽度 5.1–7.7 px 递减</text>
+  <text x="210" y="562" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">颜色 #AAFF44 击打动感</text>
+
+  <rect x="346" y="510" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="358" y="526" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">赛博网格</text>
+  <text x="358" y="539" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">5×4 等间距格线</text>
+  <text x="358" y="551" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">stroke-width 2.1 px</text>
+  <text x="358" y="562" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">#00FF44  opacity 7.2%</text>
+
+  <rect x="494" y="510" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="506" y="526" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">雷达同心圆</text>
+  <text x="506" y="539" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">2圈虚线圆弧</text>
+  <text x="506" y="551" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">r=375 / r=256 px</text>
+  <text x="506" y="562" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">#00FF66 opacity 22%/14%</text>
+
+  <rect x="642" y="510" width="130" height="56" rx="6" fill="#062010" stroke="#0A3018" stroke-width="0.8"/>
+  <text x="654" y="526" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#44FF88">文字</text>
+  <text x="654" y="539" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">SF Pro Display Bold</text>
+  <text x="654" y="551" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">font-size 94 · spacing 8.5</text>
+  <text x="654" y="562" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="8.5" fill="#4A8A5A">颜色 #44FF88</text>
+
+  <!-- 底部 -->
+  <line x1="32" y1="582" x2="868" y2="582" stroke="#0A2010" stroke-width="0.8"/>
+  <text x="450" y="598" text-anchor="middle"
+        font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="9" fill="#2A6640">Smart Sensor Ball  ·  Aurora Green Edition  ·  Design Spec v1.0  ·  2026  ·  Smart Sensor Ball Design Team</text>
+  <text x="450" y="615" text-anchor="middle"
+        font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="8.5" fill="#1A4028">交付文件：01_SmartSensorBall_AuroraGreen_1024.svg  ·  02_SmartSensorBall_AuroraGreen_180x180.svg  ·  03_SmartSensorBall_AuroraGreen_DesignSpec.svg</text>
+
+  <!-- 底部绿色条 -->
+  <rect x="0" y="636" width="900" height="4" fill="#00FF88"/>
+
+</svg>

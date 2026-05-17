@@ -1,0 +1,4 @@
+"NSBluetoothAlwaysUsageDescription" = "Smart sensor ball ใช้บลูทูธเพื่อสแกน เชื่อมต่อ รับข้อมูลแบตเตอรี่และจำนวนหมัด และส่งคำสั่งเปิด/ปิดไจโรสโคปไปยังอุปกรณ์ฝึก";
+"NSBluetoothPeripheralUsageDescription" = "ต้องใช้บลูทูธเพื่อเชื่อมต่ออุปกรณ์ฝึก Smart sensor ball";
+"NSLocalNetworkUsageDescription" = "ใช้เครือข่ายเพื่อซิงก์ประวัติการฝึก ความสำเร็จ และกระดานอันดับ";
+

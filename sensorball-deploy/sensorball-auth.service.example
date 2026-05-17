@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart sensor ball Activation API
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/sensorball-auth
+EnvironmentFile=/etc/sensorball-auth.env
+ExecStart=/opt/sensorball-auth/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8013
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

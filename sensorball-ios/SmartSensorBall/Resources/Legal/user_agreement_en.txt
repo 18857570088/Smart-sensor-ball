@@ -1,0 +1,35 @@
+Smart sensor ball User Agreement
+Version: V1.0
+Effective Date: 2026-05-15
+
+1. Scope
+This agreement applies to the Smart sensor ball app and related smart boxing ball services provided by Shaoxing Weimai Technology Co., Ltd. By using the app, you agree to this agreement.
+
+2. Services
+The app provides Bluetooth device connection, boxing count, training modes, training records, achievements, leaderboards, profile features, and language settings. Some features depend on the smart boxing ball hardware, phone Bluetooth, network connection, and cloud services.
+
+3. Safe Use
+Use the product in a safe and suitable sports environment. Before training, check the ball, rope, wearing method, and surrounding space. Train according to your physical condition and stop immediately if you feel unwell.
+
+4. Bluetooth and Data
+The app connects to SENBALL# devices and receives battery level and boxing count data. Connection and data display may vary due to phone model, system version, Bluetooth environment, battery level, or interference. Training data is for sports feedback and is not medical or professional competition evidence.
+
+5. Profile and Leaderboards
+You may set nickname and avatar. If you use leaderboards, your nickname, avatar, rank, and related scores may be displayed to other users. Do not upload illegal, infringing, false, or inappropriate content.
+
+6. Prohibited Conduct
+You must not disrupt services, forge training data, manipulate rankings, attack service interfaces, reverse engineer the app, or infringe the rights of others.
+
+7. Service Changes
+We may update, suspend, or adjust services due to upgrades, compatibility, maintenance, network issues, or force majeure.
+
+8. Intellectual Property
+The app software, interface, graphics, text, algorithms, brand, and related content belong to Shaoxing Weimai Technology Co., Ltd. or lawful rights holders.
+
+9. Liability
+Please follow product instructions and safety requirements. Losses caused by improper use, excessive exercise, third-party devices, or network environments are borne according to law.
+
+10. Updates and Contact
+We may update this agreement when necessary. Continued use means acceptance of the updated agreement.
+Operator: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

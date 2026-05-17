@@ -1,0 +1,27 @@
+# Xcode
+DerivedData/
+build/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.moved-aside
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Codemagic/local secrets
+.env
+*.p8
+*.p12
+*.mobileprovision
+ExportOptions.plist
+
+# Local reference documents; do not upload credentials or private notes
+*.docx

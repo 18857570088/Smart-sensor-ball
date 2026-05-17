@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Smart Sensor Ball — App Icon
+  极光绿版 (Aurora Green Edition)
+  Master: 1024 × 1024 px  ·  Corner radius: rx="221" (~21.5%)
+  Design: Head-mounted Boxing Reaction Ball + IMU Sensor Chip
+  Color: Aurora Green / Cyber Grid / Neon Lime
+  2026 · Smart Sensor Ball Design Team
+-->
+<svg
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img">
+
+  <title>Smart Sensor Ball — Aurora Green Edition App Icon</title>
+  <desc>
+    深空军绿背景配赛博网格，头戴式拳击反应球运动员轮廓，
+    顶部IMU传感器芯片封装（四引脚焊盘），弧形弹力绳，
+    极光绿反应球（径向渐变+高光），三轴IMU运动轨迹，
+    速度放射线，ECG心率波形，Smart Sensor Ball 文字。
+  </desc>
+
+  <defs>
+
+    <!-- ── 背景渐变 ── -->
+    <linearGradient id="g_bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#040C08"/>
+      <stop offset="55%"  stop-color="#061410"/>
+      <stop offset="100%" stop-color="#081810"/>
+    </linearGradient>
+
+    <!-- ── 反应球 白→嫩绿→深绿 径向 ── -->
+    <radialGradient id="g_ball" cx="38%" cy="32%" r="60%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="18%"  stop-color="#DFFFF0"/>
+      <stop offset="55%"  stop-color="#40E090"/>
+      <stop offset="100%" stop-color="#008840"/>
+    </radialGradient>
+
+    <!-- 球面高光层 -->
+    <radialGradient id="g_ball_shine" cx="32%" cy="28%" r="42%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 球体外发光 -->
+    <radialGradient id="g_ball_glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#00CC66" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#00CC66" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── 头部轮廓 ── -->
+    <linearGradient id="g_head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#0A160C"/>
+      <stop offset="100%" stop-color="#050A06"/>
+    </linearGradient>
+
+    <!-- ── 头带/固定架 ── -->
+    <linearGradient id="g_band" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#1A3A24"/>
+      <stop offset="100%" stop-color="#0A1810"/>
+    </linearGradient>
+
+    <!-- ── 弹力绳 嫩绿→深绿 ── -->
+    <linearGradient id="g_cord" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#80FFB0"/>
+      <stop offset="100%" stop-color="#00AA55"/>
+    </linearGradient>
+
+    <!-- ── IMU三轴轨迹渐变 ── -->
+    <!-- X轴：青绿，fade in/out -->
+    <linearGradient id="g_trk_x" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#00FF88" stop-opacity="0"/>
+      <stop offset="25%"  stop-color="#00FF88"/>
+      <stop offset="75%"  stop-color="#00FF88"/>
+      <stop offset="100%" stop-color="#00FF88" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Y轴：黄绿 -->
+    <linearGradient id="g_trk_y" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#AAFF00" stop-opacity="0"/>
+      <stop offset="25%"  stop-color="#AAFF00"/>
+      <stop offset="75%"  stop-color="#AAFF00"/>
+      <stop offset="100%" stop-color="#AAFF00" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Z轴：青 -->
+    <linearGradient id="g_trk_z" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#00FFCC" stop-opacity="0"/>
+      <stop offset="25%"  stop-color="#00FFCC"/>
+      <stop offset="75%"  stop-color="#00FFCC"/>
+      <stop offset="100%" stop-color="#00FFCC" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- ── ECG心率波 ── -->
+    <linearGradient id="g_ecg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#00FF88"/>
+      <stop offset="45%"  stop-color="#AAFF44"/>
+      <stop offset="100%" stop-color="#00FF88"/>
+    </linearGradient>
+
+    <!-- ── 速度线渐变 ── -->
+    <linearGradient id="g_speed" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#AAFF44"/>
+      <stop offset="100%" stop-color="#AAFF44" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- ── 环境光晕 ── -->
+    <radialGradient id="g_amb" cx="50%" cy="40%" r="58%">
+      <stop offset="0%"   stop-color="#008830" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#008830" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ── 雷达同心圆渐变 ── -->
+    <radialGradient id="g_radar" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#00FF66" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#00FF66" stop-opacity="0.03"/>
+    </radialGradient>
+
+    <!-- ── 圆角裁切 ── -->
+    <clipPath id="icon_clip">
+      <rect width="1024" height="1024" rx="221"/>
+    </clipPath>
+
+  </defs>
+
+  <g clip-path="url(#icon_clip)">
+
+    <!-- ══════════════════════════════════════
+         背景层
+    ══════════════════════════════════════ -->
+    <rect width="1024" height="1024" fill="url(#g_bg)"/>
+
+    <!-- 环境光晕 -->
+    <ellipse cx="512" cy="410" rx="462" ry="427" fill="url(#g_amb)"/>
+
+    <!-- 赛博网格线（垂直） -->
+    <line x1="171" y1="42"  x2="171" y2="785" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="342" y1="42"  x2="342" y2="785" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="512" y1="42"  x2="512" y2="785" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="683" y1="42"  x2="683" y2="785" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="853" y1="42"  x2="853" y2="785" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <!-- 赛博网格线（水平） -->
+    <line x1="42"  y1="171" x2="981" y2="171" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="42"  y1="342" x2="981" y2="342" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="42"  y1="512" x2="981" y2="512" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+    <line x1="42"  y1="683" x2="981" y2="683" stroke="#00FF44" stroke-width="2.1" opacity="0.072"/>
+
+    <!-- 雷达同心圆 -->
+    <circle cx="512" cy="470" r="375" fill="none"
+            stroke="#00FF66" stroke-width="4.3" opacity="0.25"
+            stroke-dasharray="25.6,38.4"/>
+    <circle cx="512" cy="470" r="256" fill="none"
+            stroke="#00FF66" stroke-width="3.0" opacity="0.15"
+            stroke-dasharray="21.3,42.7"/>
+
+    <!-- ══════════════════════════════════════
+         IMU 三轴运动轨迹
+    ══════════════════════════════════════ -->
+    <!-- X轴 — 青绿，高频正弦，最亮 -->
+    <path d="M68,239  Q154,170 239,239 Q325,308 410,239 Q496,170 582,239
+             Q668,308 754,239 Q840,170 926,239 Q955,170 982,239"
+          fill="none" stroke="url(#g_trk_x)" stroke-width="6.0"
+          stroke-linecap="round" opacity="0.58"/>
+
+    <!-- Y轴 — 黄绿，中频 -->
+    <path d="M68,358  Q239,290 410,358 Q582,427 754,358 Q886,307 982,358"
+          fill="none" stroke="url(#g_trk_y)" stroke-width="5.1"
+          stroke-linecap="round" opacity="0.44"/>
+
+    <!-- Z轴 — 青色，低频，最淡 -->
+    <path d="M68,477  Q154,512 239,477 Q325,443 410,477
+             Q496,512 582,477 Q668,443 754,477 Q840,512 926,477 Q955,512 982,477"
+          fill="none" stroke="url(#g_trk_z)" stroke-width="4.3"
+          stroke-linecap="round" opacity="0.32"/>
+
+    <!-- 轴端节点 -->
+    <circle cx="68"  cy="239" r="11.9" fill="#00FF88" opacity="0.78"/>
+    <circle cx="982" cy="239" r="11.9" fill="#00FF88" opacity="0.78"/>
+    <circle cx="68"  cy="358" r="9.4"  fill="#AAFF00" opacity="0.62"/>
+    <circle cx="982" cy="358" r="9.4"  fill="#AAFF00" opacity="0.62"/>
+    <circle cx="68"  cy="477" r="7.7"  fill="#00FFCC" opacity="0.48"/>
+    <circle cx="982" cy="477" r="7.7"  fill="#00FFCC" opacity="0.48"/>
+
+    <!-- 轴标签 X Y Z -->
+    <text x="42"  y="228" text-anchor="middle"
+          font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="29" font-weight="700" fill="#00FF88" opacity="0.72">X</text>
+    <text x="42"  y="346" text-anchor="middle"
+          font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="29" font-weight="700" fill="#AAFF00" opacity="0.58">Y</text>
+    <text x="42"  y="465" text-anchor="middle"
+          font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="29" font-weight="700" fill="#00FFCC" opacity="0.44">Z</text>
+
+    <!-- ══════════════════════════════════════
+         人体结构：头部轮廓 + 头戴固定架
+    ══════════════════════════════════════ -->
+    <!-- 颈部 -->
+    <rect x="461" y="665" width="120" height="110" rx="26" fill="url(#g_head)"/>
+
+    <!-- 头颅椭圆 -->
+    <ellipse cx="512" cy="563" rx="154" ry="171" fill="url(#g_head)"/>
+
+    <!-- 下颌高光 -->
+    <ellipse cx="512" cy="682" rx="85"  ry="34"  fill="#0C1A0E" opacity="0.55"/>
+
+    <!-- ── 头戴固定架（双侧弧形 + 顶部横带）── -->
+    <!-- 左侧固定带 -->
+    <path d="M376,530 Q359,445 376,376 Q393,325 444,291"
+          fill="none" stroke="url(#g_band)"
+          stroke-width="30" stroke-linecap="round"/>
+    <!-- 右侧固定带 -->
+    <path d="M650,530 Q668,445 650,376 Q633,325 581,291"
+          fill="none" stroke="url(#g_band)"
+          stroke-width="30" stroke-linecap="round"/>
+    <!-- 顶部横带 -->
+    <path d="M444,291 Q512,256 581,291"
+          fill="none" stroke="url(#g_band)"
+          stroke-width="26" stroke-linecap="round"/>
+
+    <!-- 额头固定接点（IMU数据接口）-->
+    <circle cx="512" cy="427" r="26" fill="#0E1E10"/>
+    <circle cx="512" cy="427" r="17" fill="#00FF88" opacity="0.88"/>
+    <circle cx="512" cy="427" r="29" fill="none"
+            stroke="#00FF88" stroke-width="5.1" opacity="0.52"/>
+    <!-- 内部十字标记 -->
+    <line x1="504" y1="427" x2="520" y2="427"
+          stroke="#001A08" stroke-width="2.6" opacity="0.6"/>
+    <line x1="512" y1="419" x2="512" y2="435"
+          stroke="#001A08" stroke-width="2.6" opacity="0.6"/>
+
+    <!-- ══════════════════════════════════════
+         IMU 传感器芯片（头带顶中央）
+    ══════════════════════════════════════ -->
+    <!-- 芯片外壳 -->
+    <rect x="469" y="239" width="85" height="85" rx="15.4"
+          fill="#040C06" stroke="#00FF88" stroke-width="6.4" opacity="0.96"/>
+    <!-- 芯片内核底纹 -->
+    <rect x="484" y="254" width="55" height="55" rx="7.7"
+          fill="#00FF88" opacity="0.18"/>
+    <!-- 芯片中心节点（发光核心）-->
+    <circle cx="512" cy="281" r="17" fill="#00FF88" opacity="0.96"/>
+    <!-- 核心内圈 -->
+    <circle cx="512" cy="281" r="9"  fill="#FFFFFF" opacity="0.55"/>
+
+    <!-- 四引脚（上下左右）-->
+    <!-- 左引脚 -->
+    <line x1="469" y1="281" x2="452" y2="281"
+          stroke="#00FF88" stroke-width="4.7" stroke-linecap="round" opacity="0.78"/>
+    <!-- 右引脚 -->
+    <line x1="554" y1="281" x2="571" y2="281"
+          stroke="#00FF88" stroke-width="4.7" stroke-linecap="round" opacity="0.78"/>
+    <!-- 上引脚 -->
+    <line x1="512" y1="239" x2="512" y2="222"
+          stroke="#00FF88" stroke-width="4.7" stroke-linecap="round" opacity="0.78"/>
+    <!-- 下引脚 -->
+    <line x1="512" y1="324" x2="512" y2="341"
+          stroke="#00FF88" stroke-width="4.7" stroke-linecap="round" opacity="0.78"/>
+
+    <!-- 焊盘（每引脚末端小矩形）-->
+    <rect x="435" y="272" width="17" height="18" rx="3.4" fill="#00FF88" opacity="0.68"/>
+    <rect x="571" y="272" width="17" height="18" rx="3.4" fill="#00FF88" opacity="0.68"/>
+    <rect x="503" y="205" width="18" height="17" rx="3.4" fill="#00FF88" opacity="0.68"/>
+    <rect x="503" y="341" width="18" height="17" rx="3.4" fill="#00FF88" opacity="0.68"/>
+
+    <!-- 芯片角标记（四角小方块）-->
+    <rect x="471" y="241" width="12" height="12" rx="2.1" fill="#00FF88" opacity="0.38"/>
+    <rect x="540" y="241" width="12" height="12" rx="2.1" fill="#00FF88" opacity="0.38"/>
+    <rect x="471" y="310" width="12" height="12" rx="2.1" fill="#00FF88" opacity="0.38"/>
+    <rect x="540" y="310" width="12" height="12" rx="2.1" fill="#00FF88" opacity="0.38"/>
+
+    <!-- ══════════════════════════════════════
+         弹力绳（芯片 → 球）
+    ══════════════════════════════════════ -->
+    <!-- 竖直段（芯片下引脚到折点）-->
+    <line x1="512" y1="358" x2="512" y2="427"
+          stroke="url(#g_cord)" stroke-width="11.1"
+          stroke-linecap="round"/>
+    <!-- 弧形弹性段（弹性摆动曲线）-->
+    <path d="M512,427 Q478,495 512,546"
+          fill="none" stroke="url(#g_cord)"
+          stroke-width="11.1" stroke-linecap="round"/>
+
+    <!-- ══════════════════════════════════════
+         反应球
+    ══════════════════════════════════════ -->
+    <!-- 外发光晕 -->
+    <ellipse cx="512" cy="597" rx="128" ry="128" fill="url(#g_ball_glow)"/>
+
+    <!-- 球体主体 -->
+    <circle cx="512" cy="597" r="102" fill="url(#g_ball)"/>
+    <!-- 球面高光 -->
+    <circle cx="512" cy="597" r="102" fill="url(#g_ball_shine)"/>
+
+    <!-- 高光椭圆（左上）-->
+    <ellipse cx="462" cy="545" rx="43" ry="29"
+             fill="white" opacity="0.52"
+             transform="rotate(-22,462,545)"/>
+    <!-- 高光圆点 -->
+    <circle  cx="477" cy="539" r="17" fill="white" opacity="0.75"/>
+    <circle  cx="452" cy="560" r="7"  fill="white" opacity="0.38"/>
+
+    <!-- 赤道纹路 -->
+    <ellipse cx="512" cy="597" rx="85" ry="26"
+             fill="none" stroke="white"
+             stroke-width="4.7" opacity="0.16"/>
+    <!-- 经线弧 -->
+    <path d="M427,546 Q512,580 597,546"
+          fill="none" stroke="white" stroke-width="3.8" opacity="0.12"/>
+    <path d="M418,640 Q512,666 607,640"
+          fill="none" stroke="white" stroke-width="3.0" opacity="0.09"/>
+
+    <!-- 球底阴影 -->
+    <ellipse cx="512" cy="704" rx="93" ry="23"
+             fill="#008840" opacity="0.18"/>
+
+    <!-- ══════════════════════════════════════
+         速度放射线（击打动感）
+    ══════════════════════════════════════ -->
+    <line x1="618" y1="546" x2="686" y2="512"
+          stroke="#AAFF44" stroke-width="7.7"
+          stroke-linecap="round" opacity="0.55"/>
+    <line x1="624" y1="588" x2="701" y2="580"
+          stroke="#AAFF44" stroke-width="6.0"
+          stroke-linecap="round" opacity="0.40"/>
+    <line x1="615" y1="631" x2="682" y2="648"
+          stroke="#AAFF44" stroke-width="5.1"
+          stroke-linecap="round" opacity="0.30"/>
+
+    <!-- 传感器数据连线（IMU接点 → 球）-->
+    <line x1="444" y1="384" x2="452" y2="410"
+          stroke="#00FF88" stroke-width="3.4"
+          stroke-dasharray="12.8,10.2" opacity="0.32"/>
+    <line x1="580" y1="384" x2="572" y2="410"
+          stroke="#00FF88" stroke-width="3.4"
+          stroke-dasharray="12.8,10.2" opacity="0.32"/>
+
+    <!-- ══════════════════════════════════════
+         ECG 心率波形
+    ══════════════════════════════════════ -->
+    <polyline
+      points="
+        68,751  120,751  148,699  176,803  205,665  233,751
+        277,751  320,751  349,724  378,751
+        422,751  465,751  494,707  524,751
+        554,751  597,751  626,724  656,751
+        700,751  729,699  757,803  786,665  814,751
+        858,751  900,751  930,724  960,751  982,751
+      "
+      fill="none"
+      stroke="url(#g_ecg)"
+      stroke-width="10.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.90"/>
+
+    <!-- 心跳峰值节点 -->
+    <circle cx="205" cy="665" r="17" fill="#00FF88" opacity="0.92"/>
+    <circle cx="786" cy="665" r="17" fill="#AAFF44" opacity="0.92"/>
+    <circle cx="494" cy="707" r="11" fill="#00FFCC" opacity="0.72"/>
+    <circle cx="626" cy="724" r="9"  fill="#00FF88" opacity="0.60"/>
+
+    <!-- ══════════════════════════════════════
+         文字：Smart Sensor Ball
+    ══════════════════════════════════════ -->
+    <!-- 文字底托 -->
+    <rect x="58" y="819" width="908" height="154" rx="43"
+          fill="#020804" opacity="0.75"/>
+
+    <!-- App 名称 -->
+    <text x="512" y="917"
+          text-anchor="middle"
+          font-family="'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="94" font-weight="700" fill="#44FF88"
+          letter-spacing="8.5">Smart Sensor Ball</text>
+
+  </g>
+</svg>

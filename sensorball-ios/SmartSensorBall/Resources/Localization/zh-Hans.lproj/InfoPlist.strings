@@ -1,0 +1,4 @@
+"NSBluetoothAlwaysUsageDescription" = "Smart sensor ball 使用蓝牙扫描、连接训练设备，接收电量和拳击次数，并发送陀螺仪开启/关闭指令。";
+"NSBluetoothPeripheralUsageDescription" = "需要蓝牙连接 Smart sensor ball 训练设备。";
+"NSLocalNetworkUsageDescription" = "网络用于同步训练记录、成就和榜单数据。";
+

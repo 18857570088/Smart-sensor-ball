@@ -1,0 +1,37 @@
+Smart sensor ball Privacy Policy
+Version: V1.0
+Effective Date: 2026-05-15
+
+1. Introduction
+Smart sensor ball is a smart boxing product companion app provided by Shaoxing Weimai Technology Co., Ltd. This policy explains how we collect, use, store, and protect information when you use Bluetooth connection, boxing count, training records, achievements, leaderboards, and profile features.
+
+2. Information We Process
+Bluetooth device data: device name, device address, connection status, battery level, and boxing count from SENBALL# devices. This is used for scanning, connection, automatic reconnection, battery display, and training count.
+Training data: mode, duration, boxing count, average frequency, best burst, accumulated hits, sessions, streaks, achievements, ranks, and leaderboard results.
+Profile data: nickname, avatar, language, region, and display information used in the app and leaderboards.
+Technical data: app version, device model, system version, network request status, errors, and necessary logs for troubleshooting and service security.
+
+3. Permissions
+Bluetooth permissions are used to scan, connect, and receive data from the smart boxing ball.
+Location-related permission may be required by Android for Bluetooth scanning. We do not use it to actively track your location.
+Network permission is used for training sync, achievements, leaderboards, and profile services.
+Image access is used only when you choose an avatar or save/share images.
+
+4. Sharing and Disclosure
+We do not sell your personal information. Necessary data may be processed within our service systems to provide sync, achievements, leaderboards, and operations. Leaderboard nickname, avatar, rank, and score are displayed as part of the product feature.
+
+5. Storage and Security
+Some settings, the last connected Bluetooth device, avatar cache, and local status are stored on your device. Training records, achievements, leaderboards, and profile summaries may be stored on cloud servers. We use reasonable security measures, but no Internet or Bluetooth environment is absolutely secure.
+
+6. Your Rights
+You may view and edit certain profile information in the app. You may contact us to request consultation, correction, or deletion where permitted by law and product safety requirements.
+
+7. Minors
+Minors should use this product under guardian guidance.
+
+8. Updates
+We may update this policy due to feature, legal, or operational changes. Important changes will be notified in the app or by other reasonable means.
+
+9. Contact
+Operator: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

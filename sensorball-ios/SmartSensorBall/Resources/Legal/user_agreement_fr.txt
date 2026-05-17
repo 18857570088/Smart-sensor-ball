@@ -1,0 +1,34 @@
+Conditions d'utilisation Smart sensor ball
+Version : V1.0
+Date d'effet : 2026-05-15
+
+1. Champ d'application
+Le présent accord s'applique à l'application Smart sensor ball et aux services associés au ballon de boxe intelligent fournis par Shaoxing Weimai Technology Co., Ltd. L'utilisation de l'application vaut acceptation de cet accord.
+
+2. Services
+L'application propose la connexion Bluetooth, le comptage des frappes, les modes d'entraînement, les historiques, les succès, les classements, le profil et les réglages de langue. Certaines fonctions dépendent du matériel, du Bluetooth du téléphone, du réseau et des services cloud.
+
+3. Utilisation sûre
+Utilisez le produit dans un espace sportif sûr et adapté. Avant l'entraînement, vérifiez le ballon, la corde, le port et l'environnement. Adaptez l'intensité à votre condition physique et arrêtez immédiatement en cas d'inconfort.
+
+4. Bluetooth et données
+L'application se connecte aux appareils SENBALL# et reçoit la batterie et le nombre de frappes. La connexion et l'affichage peuvent varier selon le téléphone, le système, l'environnement Bluetooth, la batterie ou les interférences. Les données sont fournies pour le suivi sportif, pas pour un diagnostic médical ou une certification de compétition.
+
+5. Profil et classements
+Vous pouvez définir un pseudo et un avatar. Si vous utilisez les classements, votre pseudo, avatar, rang et scores peuvent être visibles par d'autres utilisateurs. Ne publiez pas de contenu illégal, contrefaisant, faux ou inapproprié.
+
+6. Comportements interdits
+Il est interdit de perturber le service, falsifier les données d'entraînement, manipuler les classements, attaquer les interfaces, procéder à l'ingénierie inverse ou porter atteinte aux droits d'autrui.
+
+7. Changements de service
+Nous pouvons mettre à jour, suspendre ou ajuster le service pour des raisons de mise à niveau, compatibilité, maintenance, réseau ou force majeure.
+
+8. Propriété intellectuelle
+Le logiciel, l'interface, les graphismes, textes, algorithmes, marques et contenus appartiennent à Shaoxing Weimai Technology Co., Ltd. ou aux titulaires légitimes.
+
+9. Responsabilité
+Veuillez respecter les instructions et exigences de sécurité. Les pertes dues à une mauvaise utilisation, à un effort excessif, à des appareils tiers ou à l'environnement réseau sont traitées conformément à la loi.
+
+10. Contact
+Exploitant : Shaoxing Weimai Technology Co., Ltd.
+E-mail : zclei@vip.sina.com

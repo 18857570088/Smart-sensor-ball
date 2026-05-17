@@ -1,0 +1,23 @@
+﻿新线程名称：Smart sensor ball
+
+请在确保原项目不受影响的前提下，继续开发 Smart sensor ball 新项目。
+
+项目要求：
+- 新项目名称：Smart sensor ball
+- 内部代号：sensorball
+- 本地根目录：D:\2026\202605\0508
+- Android 源码目录：D:\2026\202605\0508\sensorball-android
+- 服务端源码目录：D:\2026\202605\0508\sensorball-server
+- 沿用原项目认证、榜单、训练记录、成就与训练体系，拳击计数使用蓝牙协议数据
+- APP 显示名称改为 Smart sensor ball
+- Android applicationId 改为 com.zclei.smartsensorball
+- 新数据库名：sensorball
+- 云端服务目录：/opt/sensorball-auth
+- 上传目录：/opt/sensorball-auth/uploads
+- 日志目录：/var/log/sensorball-auth
+- systemd 服务名：sensorball-auth.service
+- 服务端口：127.0.0.1:8013
+- Nginx 入口：/sensorball/
+- APP API Base URL：http://152.136.62.157/sensorball/api/v1/
+
+请先检查本地目录结构，然后开始修改 Android APP 标识和接口地址，再进行服务端、数据库和 Nginx 独立部署。

@@ -1,0 +1,37 @@
+Politique de confidentialité Smart sensor ball
+Version : V1.0
+Date d'effet : 2026-05-15
+
+1. Introduction
+Smart sensor ball est l'application compagnon d'un produit de boxe intelligent fourni par Shaoxing Weimai Technology Co., Ltd. Cette politique explique comment nous traitons les données liées à la connexion Bluetooth, au comptage des frappes, aux entraînements, aux succès, aux classements et au profil.
+
+2. Données traitées
+Données Bluetooth : nom de l'appareil, adresse, état de connexion, batterie et nombre de frappes des appareils SENBALL#.
+Données d'entraînement : mode, durée, nombre de frappes, fréquence moyenne, meilleure série, total, succès, rangs et classements.
+Données de profil : pseudo, avatar, langue, région et informations d'affichage.
+Données techniques : version de l'application, modèle de l'appareil, version du système, état des requêtes, erreurs et journaux nécessaires.
+
+3. Autorisations
+Les autorisations Bluetooth servent à rechercher, connecter et recevoir les données du ballon de boxe intelligent.
+Certaines versions d'Android exigent une autorisation liée à la localisation pour la recherche Bluetooth. Nous ne l'utilisons pas pour suivre votre position.
+Le réseau sert à synchroniser les entraînements, succès, classements et profils.
+L'accès aux images sert uniquement au choix d'un avatar ou à l'enregistrement/partage d'images.
+
+4. Partage et affichage
+Nous ne vendons pas vos données personnelles. Les données nécessaires peuvent être traitées par nos systèmes pour fournir la synchronisation, les succès, les classements et l'exploitation du service. Le pseudo, l'avatar, le rang et le score peuvent être affichés dans les classements.
+
+5. Stockage et sécurité
+Certains réglages, le dernier appareil Bluetooth connecté, le cache d'avatar et l'état local sont stockés sur votre appareil. Les entraînements, succès, classements et résumés de profil peuvent être stockés sur nos serveurs. Nous appliquons des mesures de sécurité raisonnables, mais aucun environnement Internet ou Bluetooth n'est absolument sûr.
+
+6. Vos droits
+Vous pouvez consulter et modifier certaines informations de profil dans l'application. Vous pouvez nous contacter pour demander conseil, correction ou suppression lorsque la loi et la sécurité du produit le permettent.
+
+7. Mineurs
+Les mineurs doivent utiliser ce produit sous la supervision d'un tuteur.
+
+8. Mises à jour
+Nous pouvons mettre à jour cette politique en fonction des fonctions, de la loi ou des besoins d'exploitation. Les changements importants seront signalés dans l'application ou par un autre moyen raisonnable.
+
+9. Contact
+Exploitant : Shaoxing Weimai Technology Co., Ltd.
+E-mail : zclei@vip.sina.com
