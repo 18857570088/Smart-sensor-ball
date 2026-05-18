@@ -5,9 +5,9 @@
 项目要求：
 - 新项目名称：Smart sensor ball
 - 内部代号：sensorball
-- 本地根目录：D:\2026\202605\0508
-- Android 源码目录：D:\2026\202605\0508\sensorball-android
-- 服务端源码目录：D:\2026\202605\0508\sensorball-server
+- 本地根目录：D:\2026\202605\smartsensorball
+- Android 源码目录：D:\2026\202605\smartsensorball\sensorball-android
+- 服务端源码目录：D:\2026\202605\smartsensorball\sensorball-server
 - 沿用原项目认证、榜单、训练记录、成就与训练体系，拳击计数使用蓝牙协议数据
 - APP 显示名称改为 Smart sensor ball
 - Android applicationId 改为 com.zclei.smartsensorball

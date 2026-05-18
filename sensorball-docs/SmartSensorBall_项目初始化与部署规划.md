@@ -3,17 +3,17 @@
 ## 项目边界
 
 - 老项目目录：`D:\2026\202603\3031`
-- 新项目根目录：`D:\2026\202605\0508`
+- 新项目根目录：`D:\2026\202605\smartsensorball`
 - 新项目名称：`Smart sensor ball`
 - 内部代号：`sensorball`
 - 目标：沿用当前认证、榜单、训练记录、成就与训练体系，拳击计数改为基于蓝牙协议数据，并使用独立 Android 工程、独立数据库、独立服务和独立 Nginx 入口。
 
 ## 目录规划
 
-- Android：`D:\2026\202605\0508\sensorball-android`
-- 服务端：`D:\2026\202605\0508\sensorball-server`
-- 部署模板：`D:\2026\202605\0508\sensorball-deploy`
-- 项目文档：`D:\2026\202605\0508\sensorball-docs`
+- Android：`D:\2026\202605\smartsensorball\sensorball-android`
+- 服务端：`D:\2026\202605\smartsensorball\sensorball-server`
+- 部署模板：`D:\2026\202605\smartsensorball\sensorball-deploy`
+- 项目文档：`D:\2026\202605\smartsensorball\sensorball-docs`
 
 ## APP 规划
 
@@ -38,4 +38,4 @@
 - 服务端默认数据库为 `sensorball`，默认产品码为 `SSB01`，默认端口为 `8013`。
 - Nginx 入口使用 `/sensorball/`，不覆盖原项目根入口。
 - 公开健康检查 `http://152.136.62.157/sensorball/health` 返回 200。
-- Debug APK 已输出到 `D:\2026\202605\0508\sensorball-deploy\apk\SmartSensorBall-debug.apk`。
+- Debug APK 已输出到 `D:\2026\202605\smartsensorball\sensorball-deploy\apk\SmartSensorBall-debug.apk`。

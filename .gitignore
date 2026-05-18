@@ -1,37 +1,48 @@
-# Build outputs
-**/build/
-**/.gradle/
-**/DerivedData/
-**/.build/
-*.apk
-*.aab
-*.ipa
-*.xcarchive
-*.dSYM
-*.dSYM.zip
-
-# Local IDE/user files
-**/.idea/
-**/.vscode/
-**/xcuserdata/
-*.xcuserstate
-local.properties
+# OS and editor files
 .DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*.log
 
-# Secrets and signing assets
+# Local environment and signing secrets
+**/local.properties
 .env
-*.p8
-*.p12
-*.mobileprovision
+.env.*
+**/*服务器相关参数*.docx
 *.keystore
 *.jks
-ExportOptions.plist
+*.p12
+*.mobileprovision
+*.provisionprofile
 
-# Local/private documents
-*.docx
-服务器相关参数*
+# Android build outputs and caches
+**/.gradle/
+**/build/
 
-# Local backups
+# Keep packaged APK artifacts for delivery
+!sensorball-deploy/
+!sensorball-deploy/apk/
+!sensorball-deploy/apk/*.apk
+
+# iOS / SwiftPM generated files
+**/DerivedData/
+**/.build/
+**/*.xcuserstate
+**/*.xcworkspace/xcuserdata/
+**/*.xcodeproj/xcuserdata/
+**/*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Server dependencies and runtime files
+**/node_modules/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/uploads/
+sensorball-deploy/SENSORBALL_DEPLOY_VERIFY.txt
+sensorball-deploy/SENSORBALL_SERVER_DEPLOY_REPORT.txt
+
+# Local nested Git metadata and historical full backup snapshot
+**/.git/
 20260515/
-BACKUP_MANIFEST.txt
-BACKUP_SUMMARY.txt
