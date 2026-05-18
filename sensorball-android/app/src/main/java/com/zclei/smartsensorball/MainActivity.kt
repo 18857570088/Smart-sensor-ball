@@ -366,6 +366,7 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         selectedBluetoothDevice = device
                         bluetoothConnectedDevice = device
+                        rememberBluetoothDevice(device)
                         saveLastBluetoothDevice(device)
                         bluetoothHitCount = 0
                         bluetoothPeakText = "--"
@@ -5187,7 +5188,8 @@ class MainActivity : AppCompatActivity() {
         bluetoothHitCountView?.text = "${bluetoothHitCountLabel()}\n${bluetoothHitCount?.toString() ?: "--"}"
         bluetoothDeviceListView?.let { list ->
             list.removeAllViews()
-            if (bluetoothDevices.isEmpty()) {
+            val visibleDevices = visibleBluetoothDevices()
+            if (visibleDevices.isEmpty()) {
                 list.addView(
                     bodyText(bluetoothNoDeviceText()).apply {
                         setTextColor(Color.parseColor("#8FEFBC"))
@@ -5195,8 +5197,10 @@ class MainActivity : AppCompatActivity() {
                     },
                 )
             } else {
-                bluetoothDevices.forEach { device ->
-                    val selected = selectedBluetoothDevice?.address == device.address
+                visibleDevices.forEach { device ->
+                    val selected =
+                        selectedBluetoothDevice?.matchesBluetoothDevice(device) == true ||
+                            bluetoothConnectedDevice?.matchesBluetoothDevice(device) == true
                     list.addView(
                         bodyText("${device.name}\n${device.address} · ${device.transportLabel()} · RSSI ${device.rssi}").apply {
                             setTextColor(Color.parseColor(if (selected) "#001A08" else "#DFFFF0"))
@@ -5221,6 +5225,30 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
+        }
+    }
+
+    private fun visibleBluetoothDevices(): List<SensorBallDevice> {
+        val result = bluetoothDevices.toMutableList()
+        bluetoothConnectedDevice?.let { connected ->
+            if (result.none { it.matchesBluetoothDevice(connected) }) {
+                result.add(0, connected)
+            }
+        }
+        selectedBluetoothDevice?.let { selected ->
+            if (result.none { it.matchesBluetoothDevice(selected) }) {
+                result.add(selected)
+            }
+        }
+        return result
+    }
+
+    private fun rememberBluetoothDevice(device: SensorBallDevice) {
+        val existingIndex = bluetoothDevices.indexOfFirst { it.matchesBluetoothDevice(device) }
+        if (existingIndex >= 0) {
+            bluetoothDevices[existingIndex] = device
+        } else {
+            bluetoothDevices.add(0, device)
         }
     }
 
@@ -5479,6 +5507,13 @@ class MainActivity : AppCompatActivity() {
             hasClassic -> "CLASSIC"
             else -> transport.name
         }
+
+    private fun SensorBallDevice.matchesBluetoothDevice(other: SensorBallDevice): Boolean {
+        val thisAddresses = listOf(address, bleAddress, classicAddress).filter { !it.isNullOrBlank() }
+        val otherAddresses = listOf(other.address, other.bleAddress, other.classicAddress).filter { !it.isNullOrBlank() }
+        return thisAddresses.any { left -> otherAddresses.any { right -> left.equals(right, ignoreCase = true) } } ||
+            name.trim().equals(other.name.trim(), ignoreCase = true)
+    }
 
     private fun showSettingsDialog() {
         val dialogRoot =
