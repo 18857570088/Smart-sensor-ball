@@ -84,6 +84,8 @@ class SensorBallBluetoothManager(
     private var scanning = false
     @Volatile
     private var classicReadLoopActive = false
+    @Volatile
+    private var suppressNextBleDisconnectCallback = false
 
     private val classicReceiver =
         object : BroadcastReceiver() {
@@ -172,7 +174,7 @@ class SensorBallBluetoothManager(
     @SuppressLint("MissingPermission")
     fun connect(device: SensorBallDevice) {
         stopScan()
-        disconnect()
+        disconnectInternal(notify = false)
         val targetTransport =
             when {
                 device.hasBle && device.bleAddress != null -> SensorBallTransport.Ble
@@ -203,6 +205,13 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     fun disconnect() {
+        disconnectInternal(notify = true)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun disconnectInternal(notify: Boolean) {
+        val hadConnection = connectedDevice != null || classicSocket != null || gatt != null
+        val targetGatt = gatt
         writeCharacteristic = null
         pendingNotificationDescriptors.clear()
         connectedDevice = null
@@ -210,16 +219,22 @@ class SensorBallBluetoothManager(
         classicReadLoopActive = false
         runCatching { classicSocket?.close() }
         classicSocket = null
-        gatt?.disconnect()
-        gatt?.close()
+        if (targetGatt != null) {
+            suppressNextBleDisconnectCallback = true
+            targetGatt.disconnect()
+            targetGatt.close()
+        }
         gatt = null
+        if (notify && hadConnection) {
+            callback.onDisconnected()
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun close() {
         stopScan()
         unregisterClassicReceiver()
-        disconnect()
+        disconnectInternal(notify = false)
     }
 
     @SuppressLint("MissingPermission")
@@ -329,8 +344,11 @@ class SensorBallBluetoothManager(
                     break
                 }
             }
+            val shouldNotify = classicReadLoopActive
             classicReadLoopActive = false
-            callback.onDisconnected()
+            if (shouldNotify) {
+                callback.onDisconnected()
+            }
         }
     }
 
@@ -343,6 +361,10 @@ class SensorBallBluetoothManager(
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     writeCharacteristic = null
+                    if (suppressNextBleDisconnectCallback) {
+                        suppressNextBleDisconnectCallback = false
+                        return
+                    }
                     if (!tryPendingClassicFallback("BLE disconnected status=$status")) {
                         callback.onDisconnected()
                     }
