@@ -42,12 +42,17 @@ data class SensorBallTelemetry(
     val packetIndex: Int,
     val batteryRaw: Int,
     val hitCount: Int,
-    val peak: Int,
+    val forceLow: Int,
+    val forceHigh: Int,
+    val forceN: Int,
 ) {
+    val peak: Int
+        get() = forceN
+
     val batteryText: String =
         when (batteryRaw) {
-            101 -> "正在充电"
-            102 -> "已充满"
+            101 -> "充电"
+            102 -> "充满"
             in 0..100 -> "$batteryRaw%"
             else -> "--"
         }
@@ -81,6 +86,9 @@ class SensorBallBluetoothManager(
     private var pendingFallbackDevice: SensorBallDevice? = null
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
     private val pendingNotificationDescriptors = ArrayDeque<BluetoothGattDescriptor>()
+    private val readableTelemetryCandidates = mutableListOf<BluetoothGattCharacteristic>()
+    private var bleNotifyCount: Int = 0
+    private var bleReadyDispatched = false
     private var scanning = false
     @Volatile
     private var classicReadLoopActive = false
@@ -214,6 +222,9 @@ class SensorBallBluetoothManager(
         val targetGatt = gatt
         writeCharacteristic = null
         pendingNotificationDescriptors.clear()
+        readableTelemetryCandidates.clear()
+        bleNotifyCount = 0
+        bleReadyDispatched = false
         connectedDevice = null
         pendingFallbackDevice = null
         classicReadLoopActive = false
@@ -239,22 +250,59 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     fun setGyroscopeEnabled(enabled: Boolean): Boolean {
+        val payload = gyroscopePayload(enabled)
+        val successMessage = if (enabled) "已发送开启陀螺仪指令" else "已发送关闭陀螺仪指令"
+        return writeControlPayload(payload, successMessage = successMessage, failureMessage = "指令发送失败")
+    }
+
+    @SuppressLint("MissingPermission")
+    fun requestTelemetryRefresh(
+        allowGyroscopeOffFallback: Boolean,
+        forceGyroscopeOffFallback: Boolean = false,
+    ): Boolean {
+        if (allowGyroscopeOffFallback && forceGyroscopeOffFallback) {
+            return writeControlPayload(gyroscopePayload(enabled = false), successMessage = null, failureMessage = null)
+        }
+        val targetGatt = gatt
+        val readable = bestReadableTelemetryCharacteristic()
+        if (targetGatt != null && readable != null) {
+            val readStarted = runCatching { targetGatt.readCharacteristic(readable) }.getOrDefault(false)
+            if (readStarted) {
+                return true
+            }
+        }
+        if (!allowGyroscopeOffFallback) {
+            return false
+        }
+        return writeControlPayload(gyroscopePayload(enabled = false), successMessage = null, failureMessage = null)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun writeControlPayload(
+        payload: ByteArray,
+        successMessage: String?,
+        failureMessage: String?,
+    ): Boolean {
         val targetSocket = classicSocket
         if (targetSocket != null && targetSocket.isConnected) {
-            val payload = byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x04, if (enabled) 0x01 else 0x00)
             return try {
                 targetSocket.outputStream.write(payload)
                 targetSocket.outputStream.flush()
-                callback.onStatus(if (enabled) "已发送开启陀螺仪指令" else "已发送关闭陀螺仪指令")
+                successMessage?.let(callback::onStatus)
                 true
             } catch (_: IOException) {
-                callback.onStatus("指令发送失败")
+                failureMessage?.let(callback::onStatus)
                 false
             }
         }
-        val targetGatt = gatt ?: return false.also { callback.onStatus("请先连接蓝牙设备") }
-        val characteristic = writeCharacteristic ?: return false.also { callback.onStatus("未找到可写入的蓝牙通道") }
-        val payload = byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x04, if (enabled) 0x01 else 0x00)
+        val targetGatt =
+            gatt ?: return false.also {
+                failureMessage?.let { callback.onStatus("请先连接蓝牙设备") }
+            }
+        val characteristic =
+            writeCharacteristic ?: return false.also {
+                failureMessage?.let { callback.onStatus("未找到可写入的蓝牙通道") }
+            }
         val result =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 targetGatt.writeCharacteristic(characteristic, payload, characteristic.writeType) == BluetoothGatt.GATT_SUCCESS
@@ -262,13 +310,11 @@ class SensorBallBluetoothManager(
                 characteristic.value = payload
                 targetGatt.writeCharacteristic(characteristic)
             }
-        callback.onStatus(
-            if (result) {
-                if (enabled) "已发送开启陀螺仪指令" else "已发送关闭陀螺仪指令"
-            } else {
-                "指令发送失败"
-            },
-        )
+        if (result) {
+            successMessage?.let(callback::onStatus)
+        } else {
+            failureMessage?.let(callback::onStatus)
+        }
         return result
     }
 
@@ -287,9 +333,9 @@ class SensorBallBluetoothManager(
                 classicSocket = socket
                 connectedDevice = item
                 pendingFallbackDevice = null
+                startClassicReadLoop(socket)
                 callback.onConnected(item)
                 callback.onStatus("蓝牙串口已就绪")
-                startClassicReadLoop(socket)
             } catch (exc: IOException) {
                 if (tryClassicFallbacks(device, item)) {
                     return@thread
@@ -318,9 +364,9 @@ class SensorBallBluetoothManager(
                 classicSocket = socket
                 connectedDevice = item
                 pendingFallbackDevice = null
+                startClassicReadLoop(socket)
                 callback.onConnected(item)
                 callback.onStatus("蓝牙串口已就绪")
-                startClassicReadLoop(socket)
                 return true
             } catch (exc: IOException) {
                 runCatching { socket.close() }
@@ -361,6 +407,10 @@ class SensorBallBluetoothManager(
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     writeCharacteristic = null
+                    pendingNotificationDescriptors.clear()
+                    readableTelemetryCandidates.clear()
+                    bleNotifyCount = 0
+                    bleReadyDispatched = false
                     if (suppressNextBleDisconnectCallback) {
                         suppressNextBleDisconnectCallback = false
                         return
@@ -380,7 +430,9 @@ class SensorBallBluetoothManager(
                 }
                 writeCharacteristic = null
                 pendingNotificationDescriptors.clear()
-                var notifyCount = 0
+                readableTelemetryCandidates.clear()
+                bleNotifyCount = 0
+                bleReadyDispatched = false
                 val notifyCandidates = mutableListOf<BluetoothGattCharacteristic>()
                 gatt.services.orEmpty().forEach { service ->
                     service.characteristics.orEmpty().forEach { characteristic ->
@@ -397,6 +449,9 @@ class SensorBallBluetoothManager(
                         if (props.hasAny(BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PROPERTY_INDICATE)) {
                             notifyCandidates += characteristic
                         }
+                        if (props.hasAny(BluetoothGattCharacteristic.PROPERTY_READ)) {
+                            readableTelemetryCandidates += characteristic
+                        }
                     }
                 }
                 val orderedNotifyCandidates =
@@ -405,7 +460,7 @@ class SensorBallBluetoothManager(
                     }
                 orderedNotifyCandidates.forEach { characteristic ->
                     if (queueNotification(gatt, characteristic)) {
-                        notifyCount += 1
+                        bleNotifyCount += 1
                     }
                 }
                 if (writeCharacteristic == null) {
@@ -413,10 +468,8 @@ class SensorBallBluetoothManager(
                         return
                     }
                 }
-                connectedDevice?.let(callback::onConnected)
-                callback.onStatus("蓝牙已就绪，通知通道 $notifyCount 个")
                 if (!writeNextNotificationDescriptor(gatt)) {
-                    return
+                    dispatchBleReady(gatt)
                 }
             }
 
@@ -457,13 +510,44 @@ class SensorBallBluetoothManager(
             override fun onDescriptorWrite(
                 gatt: BluetoothGatt,
                 descriptor: BluetoothGattDescriptor,
-                status: Int,
+            status: Int,
             ) {
                 if (!writeNextNotificationDescriptor(gatt)) {
-                    return
+                    dispatchBleReady(gatt)
                 }
             }
         }
+
+    @SuppressLint("MissingPermission")
+    private fun dispatchBleReady(gatt: BluetoothGatt) {
+        if (bleReadyDispatched) {
+            return
+        }
+        bleReadyDispatched = true
+        connectedDevice?.let(callback::onConnected)
+        callback.onStatus("蓝牙已就绪，通知通道 $bleNotifyCount 个")
+        requestInitialTelemetryRead(gatt)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestInitialTelemetryRead(gatt: BluetoothGatt) {
+        val characteristic = bestReadableTelemetryCharacteristic() ?: return
+        thread(name = "sensorball-initial-telemetry-read") {
+            try {
+                Thread.sleep(500L)
+            } catch (_: InterruptedException) {
+                return@thread
+            }
+            if (this.gatt == gatt) {
+                runCatching { gatt.readCharacteristic(characteristic) }
+            }
+        }
+    }
+
+    private fun bestReadableTelemetryCharacteristic(): BluetoothGattCharacteristic? =
+        readableTelemetryCandidates
+            .sortedByDescending { it.uuid.toString().contains("ffe4", ignoreCase = true) }
+            .firstOrNull()
 
     @SuppressLint("MissingPermission")
     private fun queueNotification(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic): Boolean {
@@ -493,16 +577,30 @@ class SensorBallBluetoothManager(
         }
         for (index in 0..(value.size - TELEMETRY_PACKET_SIZE)) {
             if ((value[index].toInt() and 0xFF) == 0xD5 && (value[index + 1].toInt() and 0xFF) == 0x5D && (value[index + 2].toInt() and 0xFF) == 0x03) {
-                return SensorBallTelemetry(
+                val forceLow = value[index + 9].toInt() and 0xFF
+                val forceHigh = value[index + 10].toInt() and 0xFF
+                val telemetry = SensorBallTelemetry(
                     packetIndex = value[index + 3].toInt() and 0xFF,
                     batteryRaw = value[index + 4].toInt() and 0xFF,
                     hitCount = value[index + 5].toInt() and 0xFF,
-                    peak = value[index + 7].toInt() and 0xFF,
+                    forceLow = forceLow,
+                    forceHigh = forceHigh,
+                    forceN = readUInt16LittleEndian(value, index + 9),
                 )
+                return telemetry
             }
         }
         return null
     }
+
+    private fun readUInt16LittleEndian(value: ByteArray, offset: Int): Int {
+        val low = value[offset].toInt() and 0xFF
+        val high = value[offset + 1].toInt() and 0xFF
+        return low or (high shl 8)
+    }
+
+    private fun gyroscopePayload(enabled: Boolean): ByteArray =
+        byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x04, if (enabled) 0x01 else 0x00)
 
     @SuppressLint("MissingPermission")
     private fun tryPendingClassicFallback(reason: String): Boolean {
@@ -561,8 +659,13 @@ class SensorBallBluetoothManager(
         return rawText?.let { DEVICE_NAME_REGEX.find(it)?.value }
     }
 
-    private fun isBoxingDeviceName(name: String): Boolean =
-        name.trim().uppercase().startsWith(DEVICE_PREFIX)
+    private fun isBoxingDeviceName(name: String): Boolean {
+        val normalized = name.trim()
+        return normalized.startsWith(DEVICE_PREFIX, ignoreCase = true) &&
+            normalized.lastOrNull()?.isAsciiDigit() == true
+    }
+
+    private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
 
     private fun addOrMergeDevice(item: SensorBallDevice) {
         val existingKey =
@@ -655,10 +758,9 @@ class SensorBallBluetoothManager(
     private fun Int.hasAny(vararg flags: Int): Boolean = flags.any { flag -> this and flag != 0 }
 
     private companion object {
-        const val TAG = "SensorBallBT"
         const val DEVICE_PREFIX = "SENBALL#"
         const val TELEMETRY_PACKET_SIZE = 11
-        val DEVICE_NAME_REGEX = Regex("SENBALL#[A-Za-z0-9_-]*", RegexOption.IGNORE_CASE)
+        val DEVICE_NAME_REGEX = Regex("SENBALL#[A-Za-z0-9_-]*[0-9]", RegexOption.IGNORE_CASE)
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
         val CLIENT_CONFIG_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }

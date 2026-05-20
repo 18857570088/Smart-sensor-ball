@@ -24,6 +24,7 @@ class Settings:
     code_pepper: str
     admin_token: str
     default_product_code: str
+    upload_dir: str
 
 
 def load_settings() -> Settings:
@@ -39,5 +40,6 @@ def load_settings() -> Settings:
         code_pepper=_require("CODE_PEPPER"),
         admin_token=_require("ADMIN_TOKEN"),
         default_product_code=os.getenv("DEFAULT_PRODUCT_CODE", "SSB01").strip() or "SSB01",
+        upload_dir=os.getenv("UPLOAD_DIR", "uploads").strip() or "uploads",
     )
 

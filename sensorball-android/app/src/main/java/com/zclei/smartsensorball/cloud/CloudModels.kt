@@ -119,3 +119,23 @@ data class CloudLeaderboardResult(
     val me: CloudLeaderboardEntry? = null,
 )
 
+data class CloudSoundEffect(
+    val id: String,
+    val nameZh: String,
+    val nameEn: String,
+    val descriptionZh: String,
+    val descriptionEn: String,
+    val style: String,
+    val bpm: Int,
+    val durationMs: Int,
+    val url: String,
+)
+
+data class CloudSoundEffectCatalog(
+    val success: Boolean,
+    val message: String,
+    val version: Int = 0,
+    val updatedAt: String? = null,
+    val items: List<CloudSoundEffect> = emptyList(),
+)
+

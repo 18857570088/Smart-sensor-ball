@@ -96,6 +96,12 @@ class CloudSyncService(
             },
         )
 
+    fun fetchSoundEffects(): CloudSoundEffectCatalog =
+        getJson(
+            path = "/api/v1/sound-effects",
+            parser = ::parseSoundEffectCatalog,
+        )
+
     private fun authPayload(
         state: ActivationState,
         appVersion: String,
@@ -123,6 +129,46 @@ class CloudSyncService(
             connection.outputStream.use { output ->
                 output.write(payload.toString().toByteArray(Charsets.UTF_8))
             }
+            val responseCode = connection.responseCode
+            val body =
+                readBody(
+                    if (responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream ?: connection.inputStream
+                    },
+                )
+            val json =
+                try {
+                    JSONObject(body)
+                } catch (_: Throwable) {
+                    null
+                }
+            parser(responseCode, json, body)
+        } catch (t: Throwable) {
+            parser(
+                0,
+                JSONObject()
+                    .put("status", "blocked")
+                    .put("reason", NETWORK_REASON)
+                    .put("message", t.message ?: "Network request failed."),
+                t.message ?: "",
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun <T> getJson(
+        path: String,
+        parser: (Int, JSONObject?, String) -> T,
+    ): T {
+        val connection = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection)
+        return try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
+            connection.doInput = true
             val responseCode = connection.responseCode
             val body =
                 readBody(
@@ -211,6 +257,46 @@ class CloudSyncService(
             me = json?.optJSONObject("me")?.let(::parseLeaderboardEntry),
         )
     }
+
+    private fun parseSoundEffectCatalog(
+        responseCode: Int,
+        json: JSONObject?,
+        fallbackBody: String,
+    ): CloudSoundEffectCatalog {
+        val success = responseCode in 200..299 && json?.optString("status") == "ok"
+        return CloudSoundEffectCatalog(
+            success = success,
+            message = json?.optString("message").orEmpty().ifBlank { fallbackBody.ifBlank { "Request failed." } },
+            version = json?.optInt("version") ?: 0,
+            updatedAt = normalizedNullableString(json?.optString("updated_at")),
+            items = json?.optJSONArray("items")?.let(::parseSoundEffects).orEmpty(),
+        )
+    }
+
+    private fun parseSoundEffects(json: JSONArray): List<CloudSoundEffect> =
+        buildList {
+            for (index in 0 until json.length()) {
+                val item = json.optJSONObject(index) ?: continue
+                val id = item.optString("id")
+                val url = item.optString("url")
+                if (id.isBlank() || url.isBlank()) {
+                    continue
+                }
+                add(
+                    CloudSoundEffect(
+                        id = id,
+                        nameZh = item.optString("name_zh").ifBlank { item.optString("name_en") },
+                        nameEn = item.optString("name_en").ifBlank { item.optString("name_zh") },
+                        descriptionZh = item.optString("description_zh").ifBlank { item.optString("description_en") },
+                        descriptionEn = item.optString("description_en").ifBlank { item.optString("description_zh") },
+                        style = item.optString("style"),
+                        bpm = item.optInt("bpm"),
+                        durationMs = item.optInt("duration_ms"),
+                        url = url,
+                    ),
+                )
+            }
+        }
 
     private fun parseProfile(json: JSONObject): CloudUserProfile =
         CloudUserProfile(

@@ -12,7 +12,9 @@ import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.SoundPool
 import android.net.Uri
 import android.graphics.Typeface
 import android.os.Build
@@ -63,6 +65,7 @@ import com.zclei.smartsensorball.cloud.CloudBootstrapResult
 import com.zclei.smartsensorball.cloud.CloudAchievementItem
 import com.zclei.smartsensorball.cloud.CloudLeaderboardEntry
 import com.zclei.smartsensorball.cloud.CloudLeaderboardResult
+import com.zclei.smartsensorball.cloud.CloudSoundEffect
 import com.zclei.smartsensorball.cloud.CloudSyncService
 import com.zclei.smartsensorball.cloud.CloudTierProgress
 import com.zclei.smartsensorball.cloud.CloudTrainingHistoryItem
@@ -84,6 +87,8 @@ import com.zclei.smartsensorball.ui.applyRippleOverlay
 import java.text.SimpleDateFormat
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.MessageDigest
 import java.util.ArrayDeque
 import java.util.Date
@@ -168,6 +173,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedHomePage: HomePage = HomePage.TrainingCenter
     private var trainingJob: Job? = null
     private var activationJob: Job? = null
+    private var bluetoothBatteryRefreshJob: Job? = null
     private var bluetoothTrainingCount: Int = 0
     private var bluetoothTrainingMode: TrainingMode? = null
     private var lastDisplayedCount = 0
@@ -206,6 +212,18 @@ class MainActivity : AppCompatActivity() {
 
     private val activationService = ActivationService()
     private val cloudSyncService = CloudSyncService()
+    private var cloudSoundEffects: List<CloudSoundEffect> = emptyList()
+    private var cloudSoundEffectsMessage: String? = null
+    private var cloudSoundEffectsLoadingJob: Job? = null
+    private var selectedCloudSoundEffectId: String = ""
+    private var selectedCloudSoundEffectName: String = ""
+    private var selectedCloudSoundEffectUrl: String = ""
+    private var cloudEffectPreviewPlayer: MediaPlayer? = null
+    private var cloudEffectPreviewJob: Job? = null
+    private var cloudEffectSoundPool: SoundPool? = null
+    private var loadedCloudEffectId: String? = null
+    private var loadedCloudEffectSampleId: Int = 0
+    private var loadingCloudEffectId: String? = null
 
     private lateinit var titleView: TextView
     private lateinit var subtitleView: TextView
@@ -373,7 +391,9 @@ class MainActivity : AppCompatActivity() {
                         bluetoothRealHitCount = 0
                         lastBluetoothGyroRawCount = null
                         pendingBluetoothGyroHitTimes.clear()
+                        bluetoothBatteryText = "--"
                         ensureGyroscopeOffAfterConnection()
+                        startBluetoothBatteryRefreshLoop()
                         bluetoothStatusMessage = bluetoothConnectedText(device.name)
                         updateBluetoothSettingsViews()
                     }
@@ -386,6 +406,7 @@ class MainActivity : AppCompatActivity() {
                         bluetoothDevices.clear()
                         bluetoothBatteryText = "--"
                         pendingBluetoothGyroHitTimes.clear()
+                        stopBluetoothBatteryRefreshLoop()
                         bluetoothStatusMessage = bluetoothDisconnectedText()
                         updateBluetoothSettingsViews()
                     }
@@ -393,9 +414,9 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onTelemetry(telemetry: SensorBallTelemetry) {
                     runOnUiThread {
-                        bluetoothBatteryText = telemetry.batteryText
+                        applyBluetoothBatteryTelemetry(telemetry)
                         bluetoothPeakText = telemetry.peak.toString()
-                        updateBluetoothGyroHitCount(telemetry.hitCount)
+                        updateBluetoothGyroHitCount(telemetry.hitCount, telemetry.forceN)
                         bluetoothStatusMessage = bluetoothPacketReceivedText(telemetry.packetIndex)
                         updateBluetoothSettingsViews()
                     }
@@ -468,6 +489,7 @@ class MainActivity : AppCompatActivity() {
         initTextToSpeech()
         renderIdle()
         refreshCloudData(forceLeaderboard = true)
+        fetchCloudSoundEffects()
         startLaunchSplash()
         contentRootView.post { autoConnectLastBluetoothDevice() }
         contentRootView.postDelayed({ maybeShowBluetoothFirstUseGuide() }, 1200L)
@@ -477,6 +499,10 @@ class MainActivity : AppCompatActivity() {
         trainingJob?.cancel()
         activationJob?.cancel()
         cloudJob?.cancel()
+        stopBluetoothBatteryRefreshLoop()
+        cloudSoundEffectsLoadingJob?.cancel()
+        stopCloudEffectPreview()
+        releaseCloudEffectSoundPool()
         sensorBallBluetooth.close()
         if (::splashVideoView.isInitialized) {
             try {
@@ -2043,6 +2069,7 @@ class MainActivity : AppCompatActivity() {
         setTrainingBusyUi(true)
         setActivationVisible(false)
         applyStaticTexts()
+        prepareSelectedCloudSoundEffect()
 
         trainingJob =
             lifecycleScope.launch(Dispatchers.Main) {
@@ -2130,6 +2157,227 @@ class MainActivity : AppCompatActivity() {
         withTimeoutOrNull(timeoutMs) {
             completed.await()
         }
+    }
+
+    private fun previewCloudSoundEffect(effect: CloudSoundEffect) {
+        stopCloudEffectPreview()
+        Toast.makeText(
+            this,
+            localText(
+                "正在试听：${cloudSoundEffectName(effect)}",
+                "Previewing: ${cloudSoundEffectName(effect)}",
+                "Écoute : ${cloudSoundEffectName(effect)}",
+                "ลองฟัง: ${cloudSoundEffectName(effect)}",
+            ),
+            Toast.LENGTH_SHORT,
+        ).show()
+        cloudEffectPreviewPlayer =
+            MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                setOnPreparedListener { player ->
+                    val durationMs = player.duration.takeIf { it > 0 }?.toLong() ?: 0L
+                    val previewMs = max(CLOUD_EFFECT_PREVIEW_MIN_MS, durationMs)
+                    player.isLooping = durationMs > 0L && durationMs < previewMs
+                    player.start()
+                    cloudEffectPreviewJob?.cancel()
+                    cloudEffectPreviewJob =
+                        lifecycleScope.launch {
+                            delay(previewMs)
+                            stopCloudEffectPreview()
+                        }
+                }
+                setOnCompletionListener {
+                    stopCloudEffectPreview()
+                }
+                setOnErrorListener { _, _, _ ->
+                    stopCloudEffectPreview()
+                    Toast.makeText(
+                        this@MainActivity,
+                        localText("试听失败", "Preview failed", "Échec de l'écoute", "ฟังไม่สำเร็จ"),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    true
+                }
+                setCloudSoundDataSource(effect.url)
+                prepareAsync()
+            }
+        prepareCloudSoundEffect(effect, playWhenReady = false)
+    }
+
+    private fun stopCloudEffectPreview() {
+        cloudEffectPreviewJob?.cancel()
+        cloudEffectPreviewJob = null
+        cloudEffectPreviewPlayer?.let { player ->
+            runCatching { player.stop() }
+            runCatching { player.release() }
+        }
+        cloudEffectPreviewPlayer = null
+    }
+
+    private fun MediaPlayer.setCloudSoundDataSource(url: String) {
+        if (url.startsWith("asset://")) {
+            val assetPath = url.removePrefix("asset://")
+            assets.openFd(assetPath).use { descriptor ->
+                setDataSource(descriptor.fileDescriptor, descriptor.startOffset, descriptor.length)
+            }
+        } else {
+            setDataSource(url)
+        }
+    }
+
+    private fun prepareCloudSoundEffect(effect: CloudSoundEffect, playWhenReady: Boolean) {
+        if (effect.id.isBlank() || effect.url.isBlank()) {
+            return
+        }
+        if (loadedCloudEffectId == effect.id && loadedCloudEffectSampleId != 0) {
+            if (playWhenReady) {
+                playLoadedCloudEffect(0)
+            }
+            return
+        }
+        if (loadingCloudEffectId == effect.id) {
+            return
+        }
+        loadingCloudEffectId = effect.id
+        lifecycleScope.launch(Dispatchers.IO) {
+            val file =
+                runCatching {
+                    downloadCloudSoundEffect(effect)
+                }.getOrNull()
+            withContext(Dispatchers.Main) {
+                loadingCloudEffectId = null
+                if (file == null || !file.exists()) {
+                    return@withContext
+                }
+                val pool = ensureCloudEffectSoundPool()
+                loadedCloudEffectSampleId.takeIf { it != 0 }?.let { sampleId ->
+                    runCatching { pool.unload(sampleId) }
+                }
+                loadedCloudEffectId = null
+                loadedCloudEffectSampleId = 0
+                val sampleId = pool.load(file.absolutePath, 1)
+                pool.setOnLoadCompleteListener { soundPool, loadedSampleId, status ->
+                    if (loadedSampleId == sampleId && status == 0 && selectedCloudSoundEffectId == effect.id) {
+                        loadedCloudEffectId = effect.id
+                        loadedCloudEffectSampleId = sampleId
+                        if (playWhenReady) {
+                            soundPool.play(sampleId, 1f, 1f, 1, 0, 1f)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun downloadCloudSoundEffect(effect: CloudSoundEffect): File {
+        val dir = File(cacheDir, "cloud_sfx").apply { mkdirs() }
+        val safeId = effect.id.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+        val file = File(dir, "$safeId.wav")
+        if (file.exists() && file.length() > 1_024L) {
+            return file
+        }
+        if (effect.url.startsWith("asset://")) {
+            val assetPath = effect.url.removePrefix("asset://")
+            assets.open(assetPath).use { input ->
+                FileOutputStream(file).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            return file
+        }
+        val connection = URL(effect.url).openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = 6_000
+            connection.readTimeout = 12_000
+            connection.requestMethod = "GET"
+            connection.inputStream.use { input ->
+                FileOutputStream(file).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+        return file
+    }
+
+    private fun ensureCloudEffectSoundPool(): SoundPool {
+        cloudEffectSoundPool?.let { return it }
+        val pool =
+            SoundPool.Builder()
+                .setMaxStreams(6)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                .build()
+        cloudEffectSoundPool = pool
+        return pool
+    }
+
+    private fun releaseCloudEffectSoundPool() {
+        cloudEffectSoundPool?.let { pool ->
+            runCatching { pool.setOnLoadCompleteListener(null) }
+            runCatching { pool.release() }
+        }
+        cloudEffectSoundPool = null
+        loadedCloudEffectId = null
+        loadedCloudEffectSampleId = 0
+        loadingCloudEffectId = null
+    }
+
+    private fun playLoadedCloudEffect(forceN: Int): Boolean {
+        val pool = cloudEffectSoundPool ?: return false
+        val sampleId = loadedCloudEffectSampleId.takeIf { it != 0 } ?: return false
+        if (loadedCloudEffectId != selectedCloudSoundEffectId) {
+            return false
+        }
+        val volume =
+            when {
+                forceN >= 70 -> 1.0f
+                forceN >= 30 -> 0.82f
+                else -> 0.66f
+            }
+        val rate =
+            when {
+                forceN >= 70 -> 1.04f
+                forceN >= 30 -> 1.0f
+                else -> 0.96f
+            }
+        pool.play(sampleId, volume, volume, 2, 0, rate)
+        return true
+    }
+
+    private fun selectedCloudSoundEffect(): CloudSoundEffect? =
+        cloudSoundEffects.firstOrNull { it.id == selectedCloudSoundEffectId }
+            ?: CloudSoundEffect(
+                id = selectedCloudSoundEffectId,
+                nameZh = selectedCloudSoundEffectName,
+                nameEn = selectedCloudSoundEffectName,
+                descriptionZh = "",
+                descriptionEn = "",
+                style = "",
+                bpm = 0,
+                durationMs = 0,
+                url = selectedCloudSoundEffectUrl,
+            ).takeIf { it.id.isNotBlank() && it.url.isNotBlank() }
+
+    private fun prepareSelectedCloudSoundEffect() {
+        selectedCloudSoundEffect()?.let { prepareCloudSoundEffect(it, playWhenReady = false) }
+    }
+
+    private fun playCloudSoundEffect(forceN: Int) {
+        if (playLoadedCloudEffect(forceN)) {
+            return
+        }
+        selectedCloudSoundEffect()?.let { prepareCloudSoundEffect(it, playWhenReady = true) }
     }
 
     private fun stopTraining(showStoppedState: Boolean) {
@@ -4928,6 +5176,66 @@ class MainActivity : AppCompatActivity() {
             }
 
         dialogRoot.addView(createBluetoothSettingsPanel())
+        val selectedCloudEffectHolder = arrayOf(selectedCloudSoundEffectId)
+        val soundEffectCard =
+            detailCard(fillColor = "#10131C", strokeColor = "#C084FC", cornerDp = 20).apply {
+                setPadding(dp(14), dp(13), dp(14), dp(12))
+                layoutParams =
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        bottomMargin = dp(16)
+                    }
+                addView(
+                    settingsSectionHeader(
+                        title = localText("云端音效", "Cloud Sound Effects", "Sons cloud", "เสียงบนคลาวด์"),
+                        subtitle =
+                            localText(
+                                "试听后选择拳击音效，训练击打计数时会播放所选音效。",
+                                "Preview and choose the punch sound played for training hits.",
+                                "Écoutez puis choisissez le son joué à chaque frappe.",
+                                "ฟังตัวอย่างแล้วเลือกเสียงที่จะเล่นเมื่อมีการนับหมัด",
+                            ),
+                        accentColor = "#E7D7FF",
+                    ),
+                )
+            }
+        val soundEffectsContainer =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+        fun rerenderSoundEffects() {
+            renderCloudSoundEffectSettings(
+                container = soundEffectsContainer,
+                pendingSelectedId = selectedCloudEffectHolder[0],
+                onSelect = { effect ->
+                    selectedCloudEffectHolder[0] = effect.id
+                    rerenderSoundEffects()
+                },
+                onPreview = ::previewCloudSoundEffect,
+            )
+        }
+        soundEffectCard.addView(
+            compactActionButton(localText("刷新音效", "Refresh Effects", "Actualiser", "รีเฟรชเสียง"), "#17354A").apply {
+                setOnClickListener {
+                    fetchCloudSoundEffects { rerenderSoundEffects() }
+                }
+            },
+        )
+        soundEffectCard.addView(soundEffectsContainer)
+        dialogRoot.addView(soundEffectCard)
+        if (cloudSoundEffects.isEmpty()) {
+            fetchCloudSoundEffects {
+                if (selectedCloudEffectHolder[0].isBlank()) {
+                    selectedCloudEffectHolder[0] = selectedCloudSoundEffectId
+                }
+                rerenderSoundEffects()
+            }
+        } else {
+            rerenderSoundEffects()
+        }
+
         val languageCard =
             detailCard(fillColor = "#101821", strokeColor = "#2A6A8F", cornerDp = 20).apply {
                 setPadding(dp(14), dp(13), dp(14), dp(12))
@@ -4997,6 +5305,7 @@ class MainActivity : AppCompatActivity() {
                 .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                cloudSoundEffects.firstOrNull { it.id == selectedCloudEffectHolder[0] }?.let(::applyCloudSoundEffectSelection)
                 applyLanguageAndSensitivitySettings(
                     language =
                         when (languageGroup.checkedRadioButtonId) {
@@ -5016,6 +5325,7 @@ class MainActivity : AppCompatActivity() {
             bluetoothScanButton = null
             bluetoothConnectButton = null
             bluetoothDisconnectButton = null
+            stopCloudEffectPreview()
         }
         dialog.show()
         dialog.window?.decorView?.setBackgroundColor(Color.parseColor("#1A0C00"))
@@ -5026,6 +5336,215 @@ class MainActivity : AppCompatActivity() {
             attributes.width = (resources.displayMetrics.widthPixels * 0.94f).toInt()
             window.attributes = attributes
         }
+    }
+
+    private fun renderCloudSoundEffectSettings(
+        container: LinearLayout,
+        pendingSelectedId: String,
+        onSelect: (CloudSoundEffect) -> Unit,
+        onPreview: (CloudSoundEffect) -> Unit,
+    ) {
+        container.removeAllViews()
+        cloudSoundEffectsMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            container.addView(
+                bodyText(message).apply {
+                    setTextColor(Color.parseColor("#FFD060"))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    setPadding(0, dp(8), 0, dp(6))
+                },
+            )
+        }
+        if (cloudSoundEffects.isEmpty()) {
+            container.addView(
+                bodyText(
+                    localText(
+                        "正在等待云端音效列表。",
+                        "Waiting for the cloud sound list.",
+                        "En attente de la liste des sons cloud.",
+                        "กำลังรอรายการเสียงบนคลาวด์",
+                    ),
+                ).apply {
+                    setTextColor(Color.parseColor("#8EA6B9"))
+                    setPadding(0, dp(4), 0, dp(10))
+                },
+            )
+            return
+        }
+        val rows =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+        cloudSoundEffects.forEach { effect ->
+            val isSelected = effect.id == pendingSelectedId
+            val row =
+                LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = roundedBackground(if (isSelected) "#142F42" else "#0B1721", if (isSelected) "#FF9A30" else "#243241", 14)
+                    setPadding(dp(10), dp(8), dp(10), dp(8))
+                    minimumHeight = dp(CLOUD_AUDIO_ROW_HEIGHT_DP - 10)
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply {
+                            topMargin = dp(7)
+                        }
+                    setOnClickListener { onSelect(effect) }
+                }
+            row.addView(
+                RadioButton(this).apply {
+                    isChecked = isSelected
+                    setOnClickListener { onSelect(effect) }
+                },
+            )
+            row.addView(
+                LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(
+                        bodyText(cloudSoundEffectName(effect)).apply {
+                            setTypeface(Typeface.DEFAULT_BOLD)
+                            setTextColor(Color.parseColor("#FFF8E8"))
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                        },
+                    )
+                    addView(
+                        bodyText(cloudSoundEffectDescription(effect)).apply {
+                            setTextColor(Color.parseColor("#8EA6B9"))
+                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                            setPadding(0, dp(2), 0, 0)
+                        },
+                    )
+                },
+            )
+            row.addView(
+                compactActionButton(localText("试听", "Preview", "Écouter", "ลองฟัง"), "#0A3A24").apply {
+                    setOnClickListener { onPreview(effect) }
+                },
+            )
+            rows.addView(row)
+        }
+        container.addView(limitedCloudAudioListHost(cloudSoundEffects.size).apply { addView(rows) })
+    }
+
+    private fun limitedCloudAudioListHost(itemCount: Int): ScrollView =
+        ScrollView(this).apply {
+            isVerticalScrollBarEnabled = itemCount > CLOUD_AUDIO_MAX_VISIBLE_ROWS
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
+            layoutParams =
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    if (itemCount > CLOUD_AUDIO_MAX_VISIBLE_ROWS) {
+                        dp(CLOUD_AUDIO_MAX_VISIBLE_ROWS * CLOUD_AUDIO_ROW_HEIGHT_DP)
+                    } else {
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    },
+                )
+        }
+
+    private fun fetchCloudSoundEffects(onDone: (() -> Unit)? = null) {
+        if (cloudSoundEffectsLoadingJob?.isActive == true) {
+            onDone?.let { callback ->
+                cloudSoundEffectsLoadingJob?.invokeOnCompletion {
+                    runOnUiThread { callback() }
+                }
+            }
+            return
+        }
+        cloudSoundEffectsMessage = localText("正在拉取云端音效...", "Fetching cloud effects...", "Chargement des sons cloud...", "กำลังโหลดเสียงบนคลาวด์...")
+        cloudSoundEffectsLoadingJob =
+            lifecycleScope.launch(Dispatchers.IO) {
+                val result = cloudSyncService.fetchSoundEffects()
+                withContext(Dispatchers.Main) {
+                    cloudSoundEffectsLoadingJob = null
+                    if (result.success) {
+                        cloudSoundEffects = result.items.ifEmpty { bundledCloudSoundEffects() }
+                        cloudSoundEffectsMessage =
+                            localText(
+                                "已加载 ${cloudSoundEffects.size} 个云端音效。",
+                                "Loaded ${cloudSoundEffects.size} cloud effects.",
+                                "${cloudSoundEffects.size} sons chargés.",
+                                "โหลดเสียงแล้ว ${cloudSoundEffects.size} รายการ",
+                            )
+                    } else {
+                        cloudSoundEffects = bundledCloudSoundEffects()
+                        cloudSoundEffectsMessage =
+                            if (cloudSoundEffects.isNotEmpty()) {
+                                localText(
+                                    "云端暂不可达，已使用内置音效。",
+                                    "Cloud unavailable. Using bundled effects.",
+                                    "Cloud indisponible. Sons intégrés utilisés.",
+                                    "คลาวด์ไม่พร้อม ใช้เสียงในเครื่อง",
+                                )
+                            } else {
+                                localText(
+                                    "云端音效加载失败：${result.message}",
+                                    "Cloud effects failed: ${result.message}",
+                                    "Échec des sons cloud : ${result.message}",
+                                    "โหลดเสียงไม่สำเร็จ: ${result.message}",
+                                )
+                            }
+                    }
+                    if (selectedCloudSoundEffectId.isBlank() && cloudSoundEffects.isNotEmpty()) {
+                        applyCloudSoundEffectSelection(cloudSoundEffects.first())
+                    } else {
+                        cloudSoundEffects.firstOrNull { it.id == selectedCloudSoundEffectId }
+                            ?.let { prepareCloudSoundEffect(it, playWhenReady = false) }
+                    }
+                    onDone?.invoke()
+                }
+            }
+    }
+
+    private fun cloudSoundEffectName(effect: CloudSoundEffect): String =
+        if (selectedLanguage == AppLanguage.Chinese) effect.nameZh.ifBlank { effect.nameEn } else effect.nameEn.ifBlank { effect.nameZh }
+
+    private fun cloudSoundEffectDescription(effect: CloudSoundEffect): String =
+        if (selectedLanguage == AppLanguage.Chinese) effect.descriptionZh.ifBlank { effect.descriptionEn } else effect.descriptionEn.ifBlank { effect.descriptionZh }
+
+    private fun bundledCloudSoundEffects(): List<CloudSoundEffect> =
+        runCatching {
+            assets.open("sfx/manifest.json").bufferedReader(Charsets.UTF_8).use { reader ->
+                val json = JSONObject(reader.readText())
+                val items = json.optJSONArray("items") ?: JSONArray()
+                buildList {
+                    for (index in 0 until items.length()) {
+                        val item = items.optJSONObject(index) ?: continue
+                        val file = item.optString("file")
+                        val id = item.optString("id")
+                        if (id.isBlank() || file.isBlank()) {
+                            continue
+                        }
+                        add(
+                            CloudSoundEffect(
+                                id = id,
+                                nameZh = item.optString("name_zh").ifBlank { item.optString("name_en") },
+                                nameEn = item.optString("name_en").ifBlank { item.optString("name_zh") },
+                                descriptionZh = item.optString("description_zh").ifBlank { item.optString("description_en") },
+                                descriptionEn = item.optString("description_en").ifBlank { item.optString("description_zh") },
+                                style = item.optString("style"),
+                                bpm = item.optInt("bpm"),
+                                durationMs = item.optInt("duration_ms"),
+                                url = "asset://sfx/$file",
+                            ),
+                        )
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+
+    private fun applyCloudSoundEffectSelection(effect: CloudSoundEffect) {
+        selectedCloudSoundEffectId = effect.id
+        selectedCloudSoundEffectName = cloudSoundEffectName(effect)
+        selectedCloudSoundEffectUrl = effect.url
+        prefs.edit()
+            .putString(KEY_CLOUD_SOUND_EFFECT_ID, selectedCloudSoundEffectId)
+            .putString(KEY_CLOUD_SOUND_EFFECT_NAME, selectedCloudSoundEffectName)
+            .putString(KEY_CLOUD_SOUND_EFFECT_URL, selectedCloudSoundEffectUrl)
+            .apply()
+        prepareCloudSoundEffect(effect, playWhenReady = false)
     }
 
     private fun createBluetoothSettingsPanel(): LinearLayout =
@@ -5142,7 +5661,10 @@ class MainActivity : AppCompatActivity() {
             background = roundedBackground("#0A241A", "#1E6C46", 16)
         }
 
-    private fun updateBluetoothGyroHitCount(rawCount: Int) {
+    private fun updateBluetoothGyroHitCount(
+        rawCount: Int,
+        forceN: Int = 0,
+    ) {
         val previous = lastBluetoothGyroRawCount
         if (previous == null) {
             lastBluetoothGyroRawCount = rawCount
@@ -5164,14 +5686,46 @@ class MainActivity : AppCompatActivity() {
                 countView.text = bluetoothTrainingCount.toString()
                 pulseCount()
                 Haptics.tap(this)
+                repeat(delta.coerceAtMost(4)) {
+                    playCloudSoundEffect(forceN)
+                }
                 lastDisplayedCount = bluetoothTrainingCount
             }
         }
         lastBluetoothGyroRawCount = rawCount
     }
 
+    private fun applyBluetoothBatteryTelemetry(telemetry: SensorBallTelemetry) {
+        bluetoothBatteryText = telemetry.batteryText
+    }
 
+    private fun startBluetoothBatteryRefreshLoop() {
+        stopBluetoothBatteryRefreshLoop()
+        bluetoothBatteryRefreshJob =
+            lifecycleScope.launch(Dispatchers.Main) {
+                delay(700L)
+                while (bluetoothConnectedDevice != null) {
+                    val allowGyroscopeOffFallback = trainingJob?.isActive != true && !bluetoothGyroscopeEnabled
+                    val charging = bluetoothBatteryText == "充电"
+                    sensorBallBluetooth.requestTelemetryRefresh(
+                        allowGyroscopeOffFallback = allowGyroscopeOffFallback,
+                        forceGyroscopeOffFallback = charging,
+                    )
+                    delay(
+                        if (charging) {
+                            BLUETOOTH_BATTERY_REFRESH_CHARGING_MS
+                        } else {
+                            BLUETOOTH_BATTERY_REFRESH_NORMAL_MS
+                        },
+                    )
+                }
+            }
+    }
 
+    private fun stopBluetoothBatteryRefreshLoop() {
+        bluetoothBatteryRefreshJob?.cancel()
+        bluetoothBatteryRefreshJob = null
+    }
 
     private fun updateBluetoothSettingsViews() {
         updateHeaderBluetoothStatus()
@@ -6820,6 +7374,9 @@ class MainActivity : AppCompatActivity() {
                 TrainingPlayMode.valueOf(prefs.getString(KEY_SELECTED_PLAY_MODE, TrainingPlayMode.Classic30.name).orEmpty())
             }.getOrDefault(TrainingPlayMode.Classic30)
         selectedMode = modeForPlayMode(selectedPlayMode)
+        selectedCloudSoundEffectId = prefs.getString(KEY_CLOUD_SOUND_EFFECT_ID, "").orEmpty()
+        selectedCloudSoundEffectName = prefs.getString(KEY_CLOUD_SOUND_EFFECT_NAME, "").orEmpty()
+        selectedCloudSoundEffectUrl = prefs.getString(KEY_CLOUD_SOUND_EFFECT_URL, "").orEmpty()
     }
 
     private fun saveSettings() {
@@ -8862,6 +9419,9 @@ class MainActivity : AppCompatActivity() {
         const val KEY_DAILY_TASK_TARGET_DONE = "daily_task_target_done"
         const val KEY_DAILY_TASK_SHARED = "daily_task_shared"
         const val KEY_LOCAL_TRAINING_SESSIONS = "local_training_sessions"
+        const val KEY_CLOUD_SOUND_EFFECT_ID = "training_cloud_sound_effect_id"
+        const val KEY_CLOUD_SOUND_EFFECT_NAME = "training_cloud_sound_effect_name"
+        const val KEY_CLOUD_SOUND_EFFECT_URL = "training_cloud_sound_effect_url"
         const val KEY_LAST_BLUETOOTH_NAME = "last_bluetooth_name"
         const val KEY_LAST_BLUETOOTH_ADDRESS = "last_bluetooth_address"
         const val KEY_LAST_BLUETOOTH_TRANSPORT = "last_bluetooth_transport"
@@ -8876,5 +9436,10 @@ class MainActivity : AppCompatActivity() {
         const val DEVELOPER_COMPANY_NAME_TH = "บริษัท Shaoxing Weimai Technology Co., Ltd."
         const val DEVELOPER_EMAIL = "zclei@vip.sina.com"
         const val DEVELOPER_EMAIL_SUBJECT = "Smart sensor ball APP咨询"
+        const val CLOUD_EFFECT_PREVIEW_MIN_MS = 5_000L
+        const val CLOUD_AUDIO_MAX_VISIBLE_ROWS = 5
+        const val CLOUD_AUDIO_ROW_HEIGHT_DP = 78
+        const val BLUETOOTH_BATTERY_REFRESH_CHARGING_MS = 1_200L
+        const val BLUETOOTH_BATTERY_REFRESH_NORMAL_MS = 3_000L
     }
 }

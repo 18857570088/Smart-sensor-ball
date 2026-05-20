@@ -46,3 +46,5 @@ sensorball-deploy/SENSORBALL_SERVER_DEPLOY_REPORT.txt
 # Local nested Git metadata and historical full backup snapshot
 **/.git/
 20260515/
+20260520/
+20260520.zip

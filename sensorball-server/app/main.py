@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
+import json
+from pathlib import Path
 import re
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .config import load_settings
 from .db import get_conn
@@ -35,6 +37,7 @@ SUPPORTED_WINDOWS = {"all", "day", "week", "month"}
 SUPPORTED_MODE_SECONDS = {30, 60}
 SUPPORTED_LEADERBOARD_KEYS = {"best_30_hits", "best_60_hits", "total_hits", "longest_streak"}
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+SFX_MANIFEST_NAME = "manifest.json"
 
 
 @dataclass
@@ -632,6 +635,69 @@ def authorize_request(
 def health() -> dict[str, Any]:
     settings = load_settings()
     return {"status": "ok", "service": settings.app_name}
+
+
+def sound_effects_dir() -> Path:
+    settings = load_settings()
+    root = Path(settings.upload_dir)
+    if not root.is_absolute():
+        root = Path.cwd() / root
+    return root / "sfx"
+
+
+def packaged_sound_effects_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "assets" / "sfx"
+
+
+def active_sound_effects_dir() -> Path:
+    upload_dir = sound_effects_dir()
+    if (upload_dir / SFX_MANIFEST_NAME).exists():
+        return upload_dir
+    return packaged_sound_effects_dir()
+
+
+def public_sound_asset_base_url(request: Request) -> str:
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("host") or request.url.netloc
+    return f"{scheme}://{host}/sensorball/assets/sfx"
+
+
+@app.get("/api/v1/sound-effects")
+def sound_effects(request: Request) -> dict[str, Any]:
+    manifest_path = active_sound_effects_dir() / SFX_MANIFEST_NAME
+    if not manifest_path.exists():
+        return {"status": "ok", "version": 1, "items": []}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="sound effects manifest is invalid") from exc
+    base_url = public_sound_asset_base_url(request)
+    items = []
+    for item in manifest.get("items", []):
+        filename = Path(str(item.get("file", ""))).name
+        if not filename:
+            continue
+        next_item = dict(item)
+        next_item["file"] = filename
+        next_item["url"] = f"{base_url}/{filename}"
+        items.append(next_item)
+    return {
+        "status": "ok",
+        "version": manifest.get("version", 1),
+        "updated_at": manifest.get("updated_at"),
+        "items": items,
+    }
+
+
+@app.get("/assets/sfx/{filename}")
+def sound_effect_asset(filename: str):
+    safe_name = Path(filename).name
+    if safe_name != filename or not safe_name.lower().endswith(".wav"):
+        raise HTTPException(status_code=404, detail="sound effect not found")
+    path = active_sound_effects_dir() / safe_name
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="sound effect not found")
+    return FileResponse(path, media_type="audio/wav", filename=safe_name)
 
 
 @app.post("/api/v1/activate")

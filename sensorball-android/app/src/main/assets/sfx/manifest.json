@@ -1,0 +1,62 @@
+{
+    "version":  1,
+    "updated_at":  "2026-05-19T00:00:00Z",
+    "license":  "original_sensorball_generated",
+    "items":  [
+                  {
+                      "id":  "sensorball_punch_arena_thunder",
+                      "name_zh":  "赛场雷击",
+                      "name_en":  "Arena Thunder",
+                      "description_zh":  "厚重冲击音效，适合标准训练。",
+                      "description_en":  "Heavy impact sound for standard training.",
+                      "style":  "heavy",
+                      "bpm":  100,
+                      "file":  "01_sensorball_punch_arena_thunder.wav",
+                      "duration_ms":  460
+                  },
+                  {
+                      "id":  "sensorball_punch_street_spark",
+                      "name_zh":  "街头火花",
+                      "name_en":  "Street Spark",
+                      "description_zh":  "清脆明亮音效，适合快速击打。",
+                      "description_en":  "Bright punch sound for fast hits.",
+                      "style":  "street",
+                      "bpm":  110,
+                      "file":  "02_sensorball_punch_street_spark.wav",
+                      "duration_ms":  460
+                  },
+                  {
+                      "id":  "sensorball_punch_iron_hook",
+                      "name_zh":  "铁拳冲击",
+                      "name_en":  "Iron Hook",
+                      "description_zh":  "金属质感音效，适合力量训练。",
+                      "description_en":  "Metallic punch sound for power work.",
+                      "style":  "metal",
+                      "bpm":  95,
+                      "file":  "03_sensorball_punch_iron_hook.wav",
+                      "duration_ms":  460
+                  },
+                  {
+                      "id":  "sensorball_punch_neon_jab",
+                      "name_zh":  "霓虹快拳",
+                      "name_en":  "Neon Jab",
+                      "description_zh":  "轻快短促音效，适合节奏训练。",
+                      "description_en":  "Snappy punch sound for rhythm training.",
+                      "style":  "fast",
+                      "bpm":  120,
+                      "file":  "04_sensorball_punch_neon_jab.wav",
+                      "duration_ms":  460
+                  },
+                  {
+                      "id":  "sensorball_punch_bass_smash",
+                      "name_zh":  "低频重锤",
+                      "name_en":  "Bass Smash",
+                      "description_zh":  "低频厚实音效，适合重击反馈。",
+                      "description_en":  "Deep punch sound for heavy feedback.",
+                      "style":  "bass",
+                      "bpm":  90,
+                      "file":  "05_sensorball_punch_bass_smash.wav",
+                      "duration_ms":  460
+                  }
+              ]
+}
