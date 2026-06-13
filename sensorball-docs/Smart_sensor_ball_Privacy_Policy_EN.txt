@@ -1,0 +1,117 @@
+Smart sensor ball Privacy Policy
+
+Version: V1.1
+Effective Date: June 1, 2026
+
+1. Introduction
+
+Welcome to Smart sensor ball. This app is operated by Shaoxing Weimai Technology Co., Ltd. and is designed to work with smart boxing reaction ball devices for Bluetooth connection, punch counting, training records, training results, achievements, leaderboards, profile features, and cloud sound effects.
+
+We care about the security of your personal information and exercise data. This Privacy Policy explains how we collect, use, store, protect, and manage information when providing Smart sensor ball services.
+
+2. Information We Collect and Use
+
+2.1 Bluetooth Device Information
+
+To connect to the smart boxing reaction ball hardware, the app uses Bluetooth scanning, connection, and communication capabilities. We may process Bluetooth device name, device address, connection status, battery status, punch count, punch force, and related device data.
+
+This information is used to identify SENBALL# devices, connect to the device, automatically reconnect to the last device, display battery level, and receive punch count and training data.
+
+2.2 Training and Exercise Data
+
+When you start training, the app may record training mode, duration, punch count, average frequency, best burst performance, punch force, accumulated sessions, accumulated punch count, achievement progress, tier, and leaderboard results.
+
+This information is used to generate training records, training results, achievements, rankings, leaderboards, and profile displays.
+
+2.3 Profile Information
+
+You may set your nickname, avatar, language, region, and related profile information in the app. Nickname, avatar, tier, and training results may be displayed in profile pages, training results, achievements, and leaderboards.
+
+2.4 Cloud Sound Effect Settings
+
+If you use the cloud sound effect feature, the app may retrieve a cloud sound effect list and save your selected sound effect setting for playback during training.
+
+2.5 Device and Operational Information
+
+To maintain stable service and troubleshoot issues, we may process app version, device model, operating system version, network request status, error information, and necessary logs. This information is used for troubleshooting, security protection, service maintenance, and product improvement.
+
+2.6 Information We Do Not Collect
+
+The current version of Smart sensor ball focuses on Bluetooth punch counting and exercise data. The app does not use the microphone for sound-based punch recognition, does not record training environment audio, and does not actively collect your real-time location track.
+
+3. Permissions
+
+3.1 Bluetooth Permission
+
+Used to scan, connect, and receive data from the smart boxing reaction ball device.
+
+3.2 Location-Related Permission
+
+On some Android systems, location-related permission is required to support Bluetooth scanning. We do not use this permission to actively track or record your real-time location.
+
+3.3 Network Permission
+
+Used to synchronize training records, achievements, leaderboards, profile data, and cloud sound effect lists.
+
+3.4 Image Access Permission
+
+Used only when you choose an avatar, save, or share related images.
+
+3.5 Vibration Permission
+
+Used for training count feedback and interaction prompts.
+
+4. How We Use Information
+
+We use relevant information for the following purposes:
+
+1. To scan, connect, disconnect, and automatically reconnect Bluetooth devices.
+2. To receive and display battery level, punch count, and punch force.
+3. To generate training records, training results, achievements, tiers, and leaderboards.
+4. To synchronize profile and training data.
+5. To load and play training sound effects.
+6. To troubleshoot issues, protect service security, maintain services, and improve the product.
+7. To comply with applicable laws, regulations, and regulatory requirements.
+
+5. Sharing, Transfer, and Public Disclosure
+
+We do not sell your personal information to unrelated third parties.
+
+To provide training synchronization, achievements, leaderboards, profile features, and cloud sound effects, necessary data may be processed within our service systems. Except where required by law, necessary to protect users or platform security, resolve disputes, or protect legitimate rights and interests, we will not publicly disclose your personal information.
+
+Nickname, avatar, tier, and score shown on leaderboards are displayed as part of the product feature. By using leaderboard features, you understand that such information may be visible to other users.
+
+6. Information Storage
+
+Some settings, the last connected Bluetooth device, avatar cache, sound effect selection, and local training status may be stored on your device.
+
+Training records, achievements, leaderboards, profile summaries, and necessary service data may be stored on cloud servers. We retain relevant information only for the period necessary to provide the service, unless otherwise required by applicable laws and regulations.
+
+7. Information Security
+
+We take reasonable security measures to protect your information, including access control, permission management, service isolation, the principle of minimum necessity, and necessary operational protection measures.
+
+However, the Internet, mobile devices, and Bluetooth communication environments are not absolutely secure. Please properly protect your phone, account information, and smart device, and avoid exposing relevant information in untrusted environments.
+
+8. Your Rights
+
+You may view and modify certain profile information in the app, and view training records, training results, and achievement data.
+
+If you need to inquire about, correct, or delete relevant information, you may contact us using the contact information in this policy. We will process your request within the scope permitted by applicable laws, regulations, and product security requirements.
+
+9. Protection of Minors
+
+Minors should use this product under the guidance of a guardian. Guardians should help minors understand training safety, device use, and personal information protection requirements.
+
+10. Policy Updates
+
+We may update this Privacy Policy due to product features, legal requirements, or operational needs. Important changes will be notified through in-app prompts, release notes, or other reasonable methods.
+
+11. Contact Us
+
+Operator: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com
+
+12. Special Note
+
+This Privacy Policy is drafted based on the current version of Smart sensor ball. If important new data processing scenarios are added in future versions, we will update this policy in a timely manner.

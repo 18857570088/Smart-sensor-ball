@@ -348,7 +348,7 @@ class MainActivity : AppCompatActivity() {
     private val prefs by lazy {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
     }
-    private val sensorBallBluetooth by lazy {
+    private val sensorBallBluetooth: SensorBallBluetoothManager by lazy {
         SensorBallBluetoothManager(
             this,
             object : SensorBallBluetoothCallback {
@@ -382,19 +382,27 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onConnected(device: SensorBallDevice) {
                     runOnUiThread {
+                        val reconnectingDuringTraining = trainingJob?.isActive == true && bluetoothGyroscopeEnabled
                         selectedBluetoothDevice = device
                         bluetoothConnectedDevice = device
                         rememberBluetoothDevice(device)
                         saveLastBluetoothDevice(device)
-                        bluetoothHitCount = 0
-                        bluetoothPeakText = "--"
-                        bluetoothRealHitCount = 0
-                        lastBluetoothGyroRawCount = null
-                        pendingBluetoothGyroHitTimes.clear()
-                        bluetoothBatteryText = "--"
-                        ensureGyroscopeOffAfterConnection()
+                        if (!reconnectingDuringTraining) {
+                            bluetoothHitCount = 0
+                            bluetoothPeakText = "--"
+                            bluetoothRealHitCount = 0
+                            lastBluetoothGyroRawCount = null
+                            pendingBluetoothGyroHitTimes.clear()
+                            bluetoothBatteryText = "--"
+                            ensureGyroscopeOffAfterConnection()
+                        } else {
+                            sensorBallBluetooth.setGyroscopeEnabled(true)
+                            bluetoothStatusMessage = bluetoothReconnectedText(device.name)
+                        }
                         startBluetoothBatteryRefreshLoop()
-                        bluetoothStatusMessage = bluetoothConnectedText(device.name)
+                        if (!reconnectingDuringTraining) {
+                            bluetoothStatusMessage = bluetoothConnectedText(device.name)
+                        }
                         updateBluetoothSettingsViews()
                     }
                 }
@@ -6016,6 +6024,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun bluetoothConnectedText(name: String): String =
         localText("已连接 $name", "Connected to $name", "Connecté à $name", "เชื่อมต่อกับ $name แล้ว")
+
+    private fun bluetoothReconnectedText(name: String): String =
+        localText("已重新连接 $name，训练继续", "Reconnected to $name. Training continues.", "$name reconnecté. L'entraînement continue.", "เชื่อมต่อ $name อีกครั้งแล้ว ฝึกต่อได้")
 
     private fun bluetoothDisconnectedText(): String =
         localText("蓝牙已断开", "Bluetooth disconnected", "Bluetooth déconnecté", "ตัดการเชื่อมต่อบลูทูธแล้ว")

@@ -18,6 +18,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import java.io.IOException
 import java.util.UUID
 import kotlin.concurrent.thread
@@ -74,6 +76,7 @@ class SensorBallBluetoothManager(
     private val bluetoothManager = appContext.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private val scanner get() = adapter?.bluetoothLeScanner
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val scanSettings =
         ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -83,6 +86,7 @@ class SensorBallBluetoothManager(
     private var gatt: BluetoothGatt? = null
     private var classicSocket: BluetoothSocket? = null
     private var connectedDevice: SensorBallDevice? = null
+    private var desiredDevice: SensorBallDevice? = null
     private var pendingFallbackDevice: SensorBallDevice? = null
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
     private val pendingNotificationDescriptors = ArrayDeque<BluetoothGattDescriptor>()
@@ -94,6 +98,11 @@ class SensorBallBluetoothManager(
     private var classicReadLoopActive = false
     @Volatile
     private var suppressNextBleDisconnectCallback = false
+    @Volatile
+    private var manualDisconnectRequested = false
+    private var reconnectAttempts = 0
+    private var reconnectRunnable: Runnable? = null
+    private var connectionWatchdogRunnable: Runnable? = null
 
     private val classicReceiver =
         object : BroadcastReceiver() {
@@ -181,8 +190,20 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     fun connect(device: SensorBallDevice) {
+        manualDisconnectRequested = false
+        desiredDevice = device
+        reconnectAttempts = 0
+        cancelReconnect()
+        connectInternal(device, isReconnect = false)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectInternal(
+        device: SensorBallDevice,
+        isReconnect: Boolean,
+    ) {
         stopScan()
-        disconnectInternal(notify = false)
+        disconnectInternal(notify = false, clearReconnectTarget = false)
         val targetTransport =
             when {
                 device.hasBle && device.bleAddress != null -> SensorBallTransport.Ble
@@ -202,23 +223,30 @@ class SensorBallBluetoothManager(
         }
         val targetDevice = device.copy(transport = targetTransport)
         connectedDevice = targetDevice
-        callback.onStatus("正在连接 ${device.name}...")
+        callback.onStatus(if (isReconnect) "正在重新连接 ${device.name}..." else "正在连接 ${device.name}...")
         if (targetTransport == SensorBallTransport.Classic) {
             connectClassic(remoteDevice, targetDevice)
         } else {
             pendingFallbackDevice = if (device.hasClassic && device.classicAddress != null) device.copy(transport = SensorBallTransport.Classic) else null
-            connectBle(remoteDevice)
+            connectBle(remoteDevice, targetDevice)
         }
     }
 
     @SuppressLint("MissingPermission")
     fun disconnect() {
-        disconnectInternal(notify = true)
+        manualDisconnectRequested = true
+        desiredDevice = null
+        cancelReconnect()
+        disconnectInternal(notify = true, clearReconnectTarget = true)
     }
 
     @SuppressLint("MissingPermission")
-    private fun disconnectInternal(notify: Boolean) {
+    private fun disconnectInternal(
+        notify: Boolean,
+        clearReconnectTarget: Boolean,
+    ) {
         val hadConnection = connectedDevice != null || classicSocket != null || gatt != null
+        cancelConnectionWatchdog()
         val targetGatt = gatt
         writeCharacteristic = null
         pendingNotificationDescriptors.clear()
@@ -227,6 +255,9 @@ class SensorBallBluetoothManager(
         bleReadyDispatched = false
         connectedDevice = null
         pendingFallbackDevice = null
+        if (clearReconnectTarget) {
+            desiredDevice = null
+        }
         classicReadLoopActive = false
         runCatching { classicSocket?.close() }
         classicSocket = null
@@ -243,9 +274,12 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     fun close() {
+        manualDisconnectRequested = true
+        desiredDevice = null
+        cancelReconnect()
         stopScan()
         unregisterClassicReceiver()
-        disconnectInternal(notify = false)
+        disconnectInternal(notify = false, clearReconnectTarget = true)
     }
 
     @SuppressLint("MissingPermission")
@@ -319,8 +353,13 @@ class SensorBallBluetoothManager(
     }
 
     @SuppressLint("MissingPermission")
-    private fun connectBle(device: BluetoothDevice) {
-        gatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+    private fun connectBle(
+        device: BluetoothDevice,
+        item: SensorBallDevice,
+    ) {
+        val targetGatt = device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        gatt = targetGatt
+        startConnectionWatchdog(targetGatt, item)
     }
 
     @SuppressLint("MissingPermission")
@@ -330,9 +369,11 @@ class SensorBallBluetoothManager(
                 adapter?.cancelDiscovery()
                 val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
                 socket.connect()
+                cancelConnectionWatchdog()
                 classicSocket = socket
                 connectedDevice = item
                 pendingFallbackDevice = null
+                reconnectAttempts = 0
                 startClassicReadLoop(socket)
                 callback.onConnected(item)
                 callback.onStatus("蓝牙串口已就绪")
@@ -342,7 +383,7 @@ class SensorBallBluetoothManager(
                 }
                 classicSocket = null
                 callback.onStatus("经典蓝牙连接失败")
-                callback.onDisconnected()
+                handleUnexpectedDisconnect("classic connect failed")
             }
         }
     }
@@ -361,9 +402,11 @@ class SensorBallBluetoothManager(
         for (socket in candidates) {
             try {
                 socket.connect()
+                cancelConnectionWatchdog()
                 classicSocket = socket
                 connectedDevice = item
                 pendingFallbackDevice = null
+                reconnectAttempts = 0
                 startClassicReadLoop(socket)
                 callback.onConnected(item)
                 callback.onStatus("蓝牙串口已就绪")
@@ -393,7 +436,7 @@ class SensorBallBluetoothManager(
             val shouldNotify = classicReadLoopActive
             classicReadLoopActive = false
             if (shouldNotify) {
-                callback.onDisconnected()
+                handleUnexpectedDisconnect("classic read disconnected")
             }
         }
     }
@@ -402,10 +445,22 @@ class SensorBallBluetoothManager(
         object : BluetoothGattCallback() {
             @SuppressLint("MissingPermission")
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                if (newState == BluetoothProfile.STATE_DISCONNECTED && this@SensorBallBluetoothManager.gatt != gatt) {
+                    if (suppressNextBleDisconnectCallback) {
+                        suppressNextBleDisconnectCallback = false
+                    }
+                    runCatching { gatt.close() }
+                    return
+                }
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
                     callback.onStatus("已连接，正在发现服务...")
                     gatt.discoverServices()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    if (this@SensorBallBluetoothManager.gatt == gatt) {
+                        this@SensorBallBluetoothManager.gatt = null
+                    }
+                    runCatching { gatt.close() }
                     writeCharacteristic = null
                     pendingNotificationDescriptors.clear()
                     readableTelemetryCandidates.clear()
@@ -416,16 +471,26 @@ class SensorBallBluetoothManager(
                         return
                     }
                     if (!tryPendingClassicFallback("BLE disconnected status=$status")) {
-                        callback.onDisconnected()
+                        handleUnexpectedDisconnect("BLE disconnected status=$status")
                     }
                 }
             }
 
             @SuppressLint("MissingPermission")
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                if (this@SensorBallBluetoothManager.gatt != gatt) {
+                    return
+                }
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     callback.onStatus("服务发现失败：$status")
-                    tryPendingClassicFallback("BLE service discovery failed status=$status")
+                    if (!tryPendingClassicFallback("BLE service discovery failed status=$status")) {
+                        if (this@SensorBallBluetoothManager.gatt == gatt) {
+                            this@SensorBallBluetoothManager.gatt = null
+                        }
+                        runCatching { gatt.disconnect() }
+                        runCatching { gatt.close() }
+                        handleUnexpectedDisconnect("BLE service discovery failed status=$status")
+                    }
                     return
                 }
                 writeCharacteristic = null
@@ -520,10 +585,15 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     private fun dispatchBleReady(gatt: BluetoothGatt) {
+        if (this.gatt != gatt) {
+            return
+        }
         if (bleReadyDispatched) {
             return
         }
+        cancelConnectionWatchdog()
         bleReadyDispatched = true
+        reconnectAttempts = 0
         connectedDevice?.let(callback::onConnected)
         callback.onStatus("蓝牙已就绪，通知通道 $bleNotifyCount 个")
         requestInitialTelemetryRead(gatt)
@@ -607,6 +677,7 @@ class SensorBallBluetoothManager(
         val fallback = pendingFallbackDevice ?: return false
         val address = fallback.classicAddress ?: return false
         pendingFallbackDevice = null
+        cancelConnectionWatchdog()
         runCatching { gatt?.close() }
         gatt = null
         val remoteDevice =
@@ -618,6 +689,89 @@ class SensorBallBluetoothManager(
         callback.onStatus("BLE连接失败，尝试经典蓝牙...")
         connectClassic(remoteDevice, fallback.copy(transport = SensorBallTransport.Classic))
         return true
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startConnectionWatchdog(
+        targetGatt: BluetoothGatt,
+        item: SensorBallDevice,
+    ) {
+        cancelConnectionWatchdog()
+        val runnable =
+            Runnable {
+                if (manualDisconnectRequested || gatt != targetGatt || bleReadyDispatched) {
+                    return@Runnable
+                }
+                callback.onStatus("蓝牙连接超时，正在重试...")
+                if (gatt == targetGatt) {
+                    gatt = null
+                }
+                runCatching { targetGatt.disconnect() }
+                runCatching { targetGatt.close() }
+                connectedDevice = item
+                handleUnexpectedDisconnect("BLE connection timeout")
+            }
+        connectionWatchdogRunnable = runnable
+        mainHandler.postDelayed(runnable, BLE_CONNECTION_TIMEOUT_MS)
+    }
+
+    private fun cancelConnectionWatchdog() {
+        connectionWatchdogRunnable?.let(mainHandler::removeCallbacks)
+        connectionWatchdogRunnable = null
+    }
+
+    private fun cancelReconnect() {
+        reconnectRunnable?.let(mainHandler::removeCallbacks)
+        reconnectRunnable = null
+    }
+
+    private fun handleUnexpectedDisconnect(reason: String) {
+        if (manualDisconnectRequested) {
+            return
+        }
+        cancelConnectionWatchdog()
+        writeCharacteristic = null
+        pendingNotificationDescriptors.clear()
+        readableTelemetryCandidates.clear()
+        bleNotifyCount = 0
+        bleReadyDispatched = false
+        val reconnectTarget = desiredDevice ?: connectedDevice
+        runCatching { gatt?.close() }
+        gatt = null
+        classicReadLoopActive = false
+        runCatching { classicSocket?.close() }
+        classicSocket = null
+        connectedDevice = null
+        callback.onDisconnected()
+        if (reconnectTarget == null) {
+            callback.onStatus("蓝牙已断开，请靠近设备后重新连接")
+            return
+        }
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            callback.onStatus("蓝牙信号不稳定，自动重连已暂停，请靠近设备后重新连接")
+            return
+        }
+        val nextAttempt = reconnectAttempts + 1
+        val delayMs = reconnectDelayMs(nextAttempt)
+        callback.onStatus("蓝牙信号中断，${delayMs / 1000.0} 秒后自动重连 ($nextAttempt/$MAX_RECONNECT_ATTEMPTS)")
+        reconnectAttempts = nextAttempt
+        cancelReconnect()
+        val runnable =
+            Runnable {
+                reconnectRunnable = null
+                if (manualDisconnectRequested) {
+                    return@Runnable
+                }
+                connectInternal(reconnectTarget, isReconnect = true)
+            }
+        reconnectRunnable = runnable
+        mainHandler.postDelayed(runnable, delayMs)
+    }
+
+    private fun reconnectDelayMs(attempt: Int): Long {
+        val slot = (attempt - 1).coerceAtLeast(0)
+        val delay = INITIAL_RECONNECT_DELAY_MS * (1 shl slot.coerceAtMost(4))
+        return delay.coerceAtMost(MAX_RECONNECT_DELAY_MS)
     }
 
     @SuppressLint("MissingPermission")
@@ -760,6 +914,10 @@ class SensorBallBluetoothManager(
     private companion object {
         const val DEVICE_PREFIX = "SENBALL#"
         const val TELEMETRY_PACKET_SIZE = 11
+        const val BLE_CONNECTION_TIMEOUT_MS = 12_000L
+        const val INITIAL_RECONNECT_DELAY_MS = 800L
+        const val MAX_RECONNECT_DELAY_MS = 8_000L
+        const val MAX_RECONNECT_ATTEMPTS = 12
         val DEVICE_NAME_REGEX = Regex("SENBALL#[A-Za-z0-9_-]*[0-9]", RegexOption.IGNORE_CASE)
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
         val CLIENT_CONFIG_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
