@@ -19,6 +19,9 @@ import android.net.Uri
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
@@ -79,7 +82,6 @@ import com.zclei.smartsensorball.bluetooth.SensorBallTransport
 import com.zclei.smartsensorball.model.AppLanguage
 import com.zclei.smartsensorball.model.TrainingMode
 import com.zclei.smartsensorball.model.TrainingReport
-import com.zclei.smartsensorball.ui.Haptics
 import com.zclei.smartsensorball.ui.HistoryItemAdapter
 import com.zclei.smartsensorball.ui.LeaderboardRowAdapter
 import com.zclei.smartsensorball.ui.VerticalSpacingDecoration
@@ -174,8 +176,18 @@ class MainActivity : AppCompatActivity() {
     private var trainingJob: Job? = null
     private var activationJob: Job? = null
     private var bluetoothBatteryRefreshJob: Job? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val bluetoothCountLock = Any()
+    @Volatile
+    private var bluetoothCountingActive = false
     private var bluetoothTrainingCount: Int = 0
     private var bluetoothTrainingMode: TrainingMode? = null
+    private var pendingTrainingDisplayCount: Int? = null
+    private var pendingTrainingSoundForceN: Int = 0
+    private var trainingDisplayUpdateScheduled = false
+    private val trainingCountDisplayRunnable = Runnable { flushPendingTrainingCountDisplay() }
+    private val hitSoundThread = HandlerThread("sensorball-hit-sound").apply { start() }
+    private val hitSoundHandler = Handler(hitSoundThread.looper)
     private var lastDisplayedCount = 0
     private var lastSpokenCountdown: Int? = null
     private var goSpoken = false
@@ -399,7 +411,9 @@ class MainActivity : AppCompatActivity() {
                             sensorBallBluetooth.setGyroscopeEnabled(true)
                             bluetoothStatusMessage = bluetoothReconnectedText(device.name)
                         }
-                        startBluetoothBatteryRefreshLoop()
+                        if (!reconnectingDuringTraining) {
+                            startBluetoothBatteryRefreshLoop()
+                        }
                         if (!reconnectingDuringTraining) {
                             bluetoothStatusMessage = bluetoothConnectedText(device.name)
                         }
@@ -421,6 +435,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onTelemetry(telemetry: SensorBallTelemetry) {
+                    if (bluetoothCountingActive) {
+                        updateBluetoothGyroHitCountFast(telemetry.hitCount, telemetry.forceN)
+                        return
+                    }
                     runOnUiThread {
                         applyBluetoothBatteryTelemetry(telemetry)
                         bluetoothPeakText = telemetry.peak.toString()
@@ -508,6 +526,9 @@ class MainActivity : AppCompatActivity() {
         activationJob?.cancel()
         cloudJob?.cancel()
         stopBluetoothBatteryRefreshLoop()
+        clearPendingTrainingCountWork()
+        hitSoundHandler.removeCallbacksAndMessages(null)
+        hitSoundThread.quitSafely()
         cloudSoundEffectsLoadingJob?.cancel()
         stopCloudEffectPreview()
         releaseCloudEffectSoundPool()
@@ -2061,12 +2082,16 @@ class MainActivity : AppCompatActivity() {
         dismissCelebrationBeforeTraining()
         val sessionMode = selectedMode
         val sessionPlayMode = selectedPlayMode
-        lastDisplayedCount = 0
+        clearPendingTrainingCountWork()
+        stopBluetoothBatteryRefreshLoop()
+        bluetoothCountingActive = false
+        synchronized(bluetoothCountLock) {
+            lastDisplayedCount = 0
+            bluetoothTrainingCount = 0
+            bluetoothTrainingMode = sessionMode
+        }
         lastSpokenCountdown = null
         goSpoken = false
-        bluetoothTrainingCount = 0
-        bluetoothTrainingMode = sessionMode
-        lastBluetoothGyroRawCount = null
         bluetoothHitCount = 0
         countView.text = "0"
         countdownView.text = "3"
@@ -2078,23 +2103,36 @@ class MainActivity : AppCompatActivity() {
         setActivationVisible(false)
         applyStaticTexts()
         prepareSelectedCloudSoundEffect()
+        sensorBallBluetooth.setTelemetryReadsEnabled(true)
+        sensorBallBluetooth.requestTelemetryRefresh(allowGyroscopeOffFallback = true)
 
         trainingJob =
             lifecycleScope.launch(Dispatchers.Main) {
                 try {
                     runPreTrainingCueSequence(sessionMode)
+                    sensorBallBluetooth.setTelemetryReadsEnabled(false)
+                    sensorBallBluetooth.requestTrainingConnectionPriority()
                     sensorBallBluetooth.setGyroscopeEnabled(true)
                     bluetoothGyroscopeEnabled = true
-                    updateBluetoothSettingsViews()
+                    bluetoothCountingActive = true
                     val startMs = SystemClock.elapsedRealtime()
                     val durationMs = sessionMode.durationSeconds * 1_000L
+                    var lastRemainingText = remainingView.text?.toString().orEmpty()
                     while (SystemClock.elapsedRealtime() - startMs < durationMs) {
                         val remainingMs = (durationMs - (SystemClock.elapsedRealtime() - startMs)).coerceAtLeast(0L)
-                        remainingView.text = displayRemaining(remainingMs)
-                        delay(100L)
+                        val remainingText = displayRemaining(remainingMs)
+                        if (remainingText != lastRemainingText) {
+                            remainingView.text = remainingText
+                            lastRemainingText = remainingText
+                        }
+                        delay(200L)
                     }
-                    val report = buildBluetoothTrainingReport(sessionMode, bluetoothTrainingCount)
+                    bluetoothCountingActive = false
+                    clearPendingTrainingCountWork()
+                    val totalHits = synchronized(bluetoothCountLock) { bluetoothTrainingCount }
+                    val report = buildBluetoothTrainingReport(sessionMode, totalHits)
                     sensorBallBluetooth.setGyroscopeEnabled(false)
+                    sensorBallBluetooth.setTelemetryReadsEnabled(true)
                     bluetoothGyroscopeEnabled = false
                     lastCoachOutcome = updateTrainingGameAfterReport(report, sessionPlayMode)
                     lastCoachMessage = null
@@ -2109,6 +2147,7 @@ class MainActivity : AppCompatActivity() {
                     statusView.text = tr("training_complete")
                     statusView.setTextColor(Color.parseColor("#FFB347"))
                     remainingView.text = displayRemaining(0L)
+                    startBluetoothBatteryRefreshLoop()
                     updateBluetoothSettingsViews()
                     lastCoachOutcome?.let { outcome ->
                         countdownView.postDelayed({
@@ -2118,18 +2157,27 @@ class MainActivity : AppCompatActivity() {
                         }, 350L)
                     }
                 } catch (_: CancellationException) {
+                    bluetoothCountingActive = false
+                    clearPendingTrainingCountWork()
                     sensorBallBluetooth.setGyroscopeEnabled(false)
+                    sensorBallBluetooth.setTelemetryReadsEnabled(true)
                     bluetoothGyroscopeEnabled = false
                     if (!isDestroyed && !isFinishing && statusView.text != tr("training_stopped")) {
                         renderIdle()
                     }
                 } catch (t: Throwable) {
+                    bluetoothCountingActive = false
+                    clearPendingTrainingCountWork()
                     sensorBallBluetooth.setGyroscopeEnabled(false)
+                    sensorBallBluetooth.setTelemetryReadsEnabled(true)
                     bluetoothGyroscopeEnabled = false
                     renderError(t.message ?: tr("training_failed"))
                 } finally {
                     trainingJob = null
+                    bluetoothCountingActive = false
                     bluetoothTrainingMode = null
+                    sensorBallBluetooth.setTelemetryReadsEnabled(true)
+                    startBluetoothBatteryRefreshLoop()
                     updateBluetoothSettingsViews()
                 }
             }
@@ -2382,15 +2430,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playCloudSoundEffect(forceN: Int) {
-        if (playLoadedCloudEffect(forceN)) {
-            return
-        }
-        selectedCloudSoundEffect()?.let { prepareCloudSoundEffect(it, playWhenReady = true) }
+        playLoadedCloudEffect(forceN)
     }
 
     private fun stopTraining(showStoppedState: Boolean) {
         trainingJob?.cancel()
+        bluetoothCountingActive = false
+        clearPendingTrainingCountWork()
         sensorBallBluetooth.setGyroscopeEnabled(false)
+        sensorBallBluetooth.setTelemetryReadsEnabled(true)
         bluetoothGyroscopeEnabled = false
         tts?.stop()
         trainingJob = null
@@ -2405,6 +2453,7 @@ class MainActivity : AppCompatActivity() {
             quietIconView.visibility = View.GONE
             applyStaticTexts()
         }
+        startBluetoothBatteryRefreshLoop()
     }
 
     private fun buildBluetoothTrainingReport(mode: TrainingMode, totalHits: Int): TrainingReport {
@@ -5673,34 +5722,101 @@ class MainActivity : AppCompatActivity() {
         rawCount: Int,
         forceN: Int = 0,
     ) {
-        val previous = lastBluetoothGyroRawCount
-        if (previous == null) {
-            lastBluetoothGyroRawCount = rawCount
-            if (bluetoothHitCount == null) {
-                bluetoothHitCount = 0
+        updateBluetoothGyroHitCountFast(rawCount, forceN)
+    }
+
+    private fun updateBluetoothGyroHitCountFast(
+        rawCount: Int,
+        forceN: Int = 0,
+    ) {
+        val trainingCount = consumeBluetoothHitDelta(rawCount) ?: return
+        scheduleTrainingCountDisplay(trainingCount, forceN)
+    }
+
+    private fun consumeBluetoothHitDelta(rawCount: Int): Int? =
+        synchronized(bluetoothCountLock) {
+            val previous = lastBluetoothGyroRawCount
+            if (previous == null) {
+                lastBluetoothGyroRawCount = rawCount
+                if (bluetoothHitCount == null) {
+                    bluetoothHitCount = 0
+                }
+                return@synchronized null
             }
+            val delta =
+                when {
+                    rawCount >= previous -> rawCount - previous
+                    previous >= 240 && rawCount <= 15 -> rawCount + 256 - previous
+                    else -> 0
+                }
+            lastBluetoothGyroRawCount = rawCount
+            if (delta <= 0) {
+                return@synchronized null
+            }
+            bluetoothHitCount = (bluetoothHitCount ?: 0) + delta
+            if (bluetoothCountingActive && bluetoothTrainingMode != null) {
+                bluetoothTrainingCount += delta
+                bluetoothTrainingCount
+            } else {
+                null
+            }
+        }
+
+    private fun scheduleTrainingCountDisplay(
+        count: Int,
+        forceN: Int,
+    ) {
+        val shouldPost =
+            synchronized(bluetoothCountLock) {
+                pendingTrainingDisplayCount = count
+                pendingTrainingSoundForceN = forceN
+                if (trainingDisplayUpdateScheduled) {
+                    false
+                } else {
+                    trainingDisplayUpdateScheduled = true
+                    true
+                }
+            }
+        if (shouldPost) {
+            mainHandler.postAtFrontOfQueue(trainingCountDisplayRunnable)
+        }
+    }
+
+    private fun flushPendingTrainingCountDisplay() {
+        val pending =
+            synchronized(bluetoothCountLock) {
+                val count = pendingTrainingDisplayCount
+                val forceN = pendingTrainingSoundForceN
+                pendingTrainingDisplayCount = null
+                trainingDisplayUpdateScheduled = false
+                if (count == null) null else count to forceN
+            } ?: return
+        if (!bluetoothCountingActive || bluetoothTrainingMode == null) {
             return
         }
-        val delta =
-            when {
-                rawCount >= previous -> rawCount - previous
-                previous >= 240 && rawCount <= 15 -> rawCount + 256 - previous
-                else -> 0
+        val (count, forceN) = pending
+        if (count == lastDisplayedCount) {
+            return
         }
-        if (delta > 0) {
-            bluetoothHitCount = (bluetoothHitCount ?: 0) + delta
-            if (trainingJob?.isActive == true && bluetoothTrainingMode != null) {
-                bluetoothTrainingCount += delta
-                countView.text = bluetoothTrainingCount.toString()
-                pulseCount()
-                Haptics.tap(this)
-                repeat(delta.coerceAtMost(4)) {
-                    playCloudSoundEffect(forceN)
-                }
-                lastDisplayedCount = bluetoothTrainingCount
-            }
+        countView.text = count.toString()
+        pulseCount()
+        lastDisplayedCount = count
+        playTrainingHitSound(forceN)
+    }
+
+    private fun clearPendingTrainingCountWork() {
+        mainHandler.removeCallbacks(trainingCountDisplayRunnable)
+        synchronized(bluetoothCountLock) {
+            pendingTrainingDisplayCount = null
+            pendingTrainingSoundForceN = 0
+            trainingDisplayUpdateScheduled = false
         }
-        lastBluetoothGyroRawCount = rawCount
+    }
+
+    private fun playTrainingHitSound(forceN: Int) {
+        hitSoundHandler.post {
+            playCloudSoundEffect(forceN)
+        }
     }
 
     private fun applyBluetoothBatteryTelemetry(telemetry: SensorBallTelemetry) {
@@ -5713,6 +5829,10 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch(Dispatchers.Main) {
                 delay(700L)
                 while (bluetoothConnectedDevice != null) {
+                    if (trainingJob?.isActive == true || bluetoothCountingActive || bluetoothGyroscopeEnabled) {
+                        delay(BLUETOOTH_BATTERY_REFRESH_NORMAL_MS)
+                        continue
+                    }
                     val allowGyroscopeOffFallback = trainingJob?.isActive != true && !bluetoothGyroscopeEnabled
                     val charging = bluetoothBatteryText == "充电"
                     sensorBallBluetooth.requestTelemetryRefresh(

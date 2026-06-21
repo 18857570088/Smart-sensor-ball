@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.io.IOException
+import java.util.Locale
 import java.util.UUID
 import kotlin.concurrent.thread
 
@@ -100,6 +101,8 @@ class SensorBallBluetoothManager(
     private var suppressNextBleDisconnectCallback = false
     @Volatile
     private var manualDisconnectRequested = false
+    @Volatile
+    private var telemetryReadsEnabled = true
     private var reconnectAttempts = 0
     private var reconnectRunnable: Runnable? = null
     private var connectionWatchdogRunnable: Runnable? = null
@@ -284,9 +287,22 @@ class SensorBallBluetoothManager(
 
     @SuppressLint("MissingPermission")
     fun setGyroscopeEnabled(enabled: Boolean): Boolean {
+        if (enabled) {
+            requestTrainingConnectionPriority()
+        }
         val payload = gyroscopePayload(enabled)
         val successMessage = if (enabled) "已发送开启陀螺仪指令" else "已发送关闭陀螺仪指令"
         return writeControlPayload(payload, successMessage = successMessage, failureMessage = "指令发送失败")
+    }
+
+    fun setTelemetryReadsEnabled(enabled: Boolean) {
+        telemetryReadsEnabled = enabled
+    }
+
+    @SuppressLint("MissingPermission")
+    fun requestTrainingConnectionPriority(): Boolean {
+        val targetGatt = gatt ?: return false
+        return runCatching { targetGatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }.getOrDefault(false)
     }
 
     @SuppressLint("MissingPermission")
@@ -294,6 +310,9 @@ class SensorBallBluetoothManager(
         allowGyroscopeOffFallback: Boolean,
         forceGyroscopeOffFallback: Boolean = false,
     ): Boolean {
+        if (!telemetryReadsEnabled) {
+            return false
+        }
         if (allowGyroscopeOffFallback && forceGyroscopeOffFallback) {
             return writeControlPayload(gyroscopePayload(enabled = false), successMessage = null, failureMessage = null)
         }
@@ -520,12 +539,12 @@ class SensorBallBluetoothManager(
                     }
                 }
                 val orderedNotifyCandidates =
-                    notifyCandidates.sortedByDescending { characteristic ->
-                        characteristic.uuid.toString().contains("ffe4", ignoreCase = true)
-                    }
-                orderedNotifyCandidates.forEach { characteristic ->
+                    notifyCandidates
+                        .sortedByDescending { characteristic -> characteristic.telemetryCharacteristicScore() }
+                for (characteristic in orderedNotifyCandidates) {
                     if (queueNotification(gatt, characteristic)) {
                         bleNotifyCount += 1
+                        break
                     }
                 }
                 if (writeCharacteristic == null) {
@@ -609,6 +628,9 @@ class SensorBallBluetoothManager(
                 return@thread
             }
             if (this.gatt == gatt) {
+                if (!telemetryReadsEnabled) {
+                    return@thread
+                }
                 runCatching { gatt.readCharacteristic(characteristic) }
             }
         }
@@ -616,8 +638,19 @@ class SensorBallBluetoothManager(
 
     private fun bestReadableTelemetryCharacteristic(): BluetoothGattCharacteristic? =
         readableTelemetryCandidates
-            .sortedByDescending { it.uuid.toString().contains("ffe4", ignoreCase = true) }
+            .sortedByDescending { it.telemetryCharacteristicScore() }
             .firstOrNull()
+
+    private fun BluetoothGattCharacteristic.telemetryCharacteristicScore(): Int {
+        val id = uuid.toString().lowercase(Locale.US)
+        var score = 0
+        if (id.contains("ffe4")) score += 100
+        if (id.contains("ffe1")) score += 40
+        if (properties.hasAny(BluetoothGattCharacteristic.PROPERTY_NOTIFY)) score += 10
+        if (properties.hasAny(BluetoothGattCharacteristic.PROPERTY_INDICATE)) score += 8
+        if (properties.hasAny(BluetoothGattCharacteristic.PROPERTY_READ)) score += 4
+        return score
+    }
 
     @SuppressLint("MissingPermission")
     private fun queueNotification(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic): Boolean {
