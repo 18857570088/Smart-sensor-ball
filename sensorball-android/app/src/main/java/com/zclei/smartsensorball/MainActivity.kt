@@ -59,6 +59,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.zclei.smartsensorball.auth.ActivationApiResult
@@ -511,6 +514,7 @@ class MainActivity : AppCompatActivity() {
         ensureInstallIdentity()
         loadActivationState()
         super.onCreate(savedInstanceState)
+        configureSystemBars()
         setContentView(buildContentView())
         initTextToSpeech()
         renderIdle()
@@ -1556,9 +1560,66 @@ class MainActivity : AppCompatActivity() {
             },
         )
         root.addView(contentRoot)
+        applyMainWindowInsets(root, topContainer, pageTabsCard)
         splashOverlay = buildLaunchSplashOverlay()
         root.addView(splashOverlay)
         return root
+    }
+
+    private fun configureSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+    }
+
+    private fun applyMainWindowInsets(
+        root: View,
+        topContainer: LinearLayout,
+        bottomNav: View,
+    ) {
+        val topBaseLeft = topContainer.paddingLeft
+        val topBaseTop = topContainer.paddingTop
+        val topBaseRight = topContainer.paddingRight
+        val topBaseBottom = topContainer.paddingBottom
+        val bottomBaseParams = bottomNav.layoutParams as LinearLayout.LayoutParams
+        val bottomBaseLeft = bottomBaseParams.leftMargin
+        val bottomBaseRight = bottomBaseParams.rightMargin
+        val bottomBaseBottom = bottomBaseParams.bottomMargin
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val safeLeft = max(systemBars.left, cutout.left)
+            val safeTop = max(systemBars.top, cutout.top)
+            val safeRight = max(systemBars.right, cutout.right)
+
+            topContainer.setPadding(
+                topBaseLeft + safeLeft,
+                topBaseTop + safeTop,
+                topBaseRight + safeRight,
+                topBaseBottom,
+            )
+
+            val navParams = bottomNav.layoutParams as LinearLayout.LayoutParams
+            val targetLeft = bottomBaseLeft + safeLeft
+            val targetRight = bottomBaseRight + safeRight
+            val targetBottom = bottomBaseBottom + systemBars.bottom
+            if (
+                navParams.leftMargin != targetLeft ||
+                navParams.rightMargin != targetRight ||
+                navParams.bottomMargin != targetBottom
+            ) {
+                navParams.leftMargin = targetLeft
+                navParams.rightMargin = targetRight
+                navParams.bottomMargin = targetBottom
+                bottomNav.layoutParams = navParams
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
     }
 
     private fun buildLaunchSplashOverlay(): FrameLayout =
