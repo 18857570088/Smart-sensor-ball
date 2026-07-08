@@ -17,7 +17,7 @@ This directory contains the initial iOS source project for **Smart sensor ball**
   - Connect success: `C5 5C 04 00`
   - Training start: `C5 5C 04 01`
   - Training end/stop: `C5 5C 04 00`
-- API base URL: `http://152.136.62.157/sensorball/api/v1/`
+- API base URL: `https://sensorball.86086.cn/sensorball/api/v1/`
 - Chinese, English, French, and Thai UI text
 - Privacy policy and user agreement assets
 

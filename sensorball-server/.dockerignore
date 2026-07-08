@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+uploads/
+deploy/
+sql/
+scripts/
+README.md
+.env
+.env.*

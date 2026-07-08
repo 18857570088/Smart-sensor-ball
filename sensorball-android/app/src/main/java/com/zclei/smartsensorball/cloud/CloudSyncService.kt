@@ -3,6 +3,7 @@ package com.zclei.smartsensorball.cloud
 import com.zclei.smartsensorball.auth.ActivationState
 import com.zclei.smartsensorball.model.AppLanguage
 import com.zclei.smartsensorball.model.TrainingReport
+import com.zclei.smartsensorball.network.AppApiConfig
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -12,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class CloudSyncService(
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = AppApiConfig.BASE_URL,
 ) {
     private fun normalizedNullableString(value: String?): String? {
         val normalized = value?.trim().orEmpty()
@@ -421,7 +422,6 @@ class CloudSyncService(
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "http://152.136.62.157/sensorball"
         const val NETWORK_REASON = "network_error"
         private const val CONNECT_TIMEOUT_MS = 6_000
         private const val READ_TIMEOUT_MS = 8_000

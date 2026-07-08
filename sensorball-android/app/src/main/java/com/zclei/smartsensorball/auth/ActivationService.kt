@@ -1,5 +1,6 @@
 package com.zclei.smartsensorball.auth
 
+import com.zclei.smartsensorball.network.AppApiConfig
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -8,7 +9,7 @@ import java.net.URL
 import org.json.JSONObject
 
 class ActivationService(
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    private val baseUrl: String = AppApiConfig.BASE_URL,
 ) {
     fun activate(
         serial: String,
@@ -134,7 +135,6 @@ class ActivationService(
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "http://152.136.62.157/sensorball"
         const val NETWORK_REASON = "network_error"
         private const val CONNECT_TIMEOUT_MS = 6_000
         private const val READ_TIMEOUT_MS = 8_000

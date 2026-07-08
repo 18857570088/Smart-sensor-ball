@@ -42,6 +42,12 @@ Thumbs.db
 **/uploads/
 sensorball-deploy/SENSORBALL_DEPLOY_VERIFY.txt
 sensorball-deploy/SENSORBALL_SERVER_DEPLOY_REPORT.txt
+sensorball-deploy/*.tar
+sensorball-deploy/*.tar.gz
+
+# Local diagnostics and private server notes
+debug-logs/
+sensorball-serverset.txt
 
 # Local nested Git metadata and historical full backup snapshot
 **/.git/
