@@ -3,6 +3,7 @@
 import android.Manifest
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.content.res.ColorStateList
 import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -57,6 +58,7 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
@@ -92,8 +94,6 @@ import com.zclei.smartsensorball.ui.applyRippleOverlay
 import java.text.SimpleDateFormat
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 import java.util.ArrayDeque
 import java.util.Date
@@ -228,13 +228,11 @@ class MainActivity : AppCompatActivity() {
     private val activationService = ActivationService()
     private val cloudSyncService = CloudSyncService()
     private var cloudSoundEffects: List<CloudSoundEffect> = emptyList()
-    private var cloudSoundEffectsMessage: String? = null
-    private var cloudSoundEffectsLoadingJob: Job? = null
     private var selectedCloudSoundEffectId: String = ""
     private var selectedCloudSoundEffectName: String = ""
     private var selectedCloudSoundEffectUrl: String = ""
-    private var cloudEffectPreviewPlayer: MediaPlayer? = null
-    private var cloudEffectPreviewJob: Job? = null
+    private var lightControlEnabled: Boolean = false
+    private var lightBrightness: Int = DEFAULT_LIGHT_BRIGHTNESS
     private var cloudEffectSoundPool: SoundPool? = null
     private var loadedCloudEffectId: String? = null
     private var loadedCloudEffectSampleId: Int = 0
@@ -409,9 +407,13 @@ class MainActivity : AppCompatActivity() {
                             lastBluetoothGyroRawCount = null
                             pendingBluetoothGyroHitTimes.clear()
                             bluetoothBatteryText = "--"
+                            bluetoothBatteryCharging = false
+                            latestBluetoothBatteryTelemetry = null
                             ensureGyroscopeOffAfterConnection()
+                            applyLightControlToDevice(notify = false)
                         } else {
                             sensorBallBluetooth.setGyroscopeEnabled(true)
+                            mainHandler.postDelayed({ applyLightControlToDevice(notify = false) }, 180L)
                             bluetoothStatusMessage = bluetoothReconnectedText(device.name)
                         }
                         if (!reconnectingDuringTraining) {
@@ -430,8 +432,11 @@ class MainActivity : AppCompatActivity() {
                         selectedBluetoothDevice = null
                         bluetoothDevices.clear()
                         bluetoothBatteryText = "--"
+                        bluetoothBatteryCharging = false
+                        latestBluetoothBatteryTelemetry = null
                         pendingBluetoothGyroHitTimes.clear()
                         stopBluetoothBatteryRefreshLoop()
+                        turnLightOffBecauseBluetoothUnavailable()
                         bluetoothStatusMessage = bluetoothDisconnectedText()
                         updateBluetoothSettingsViews()
                     }
@@ -458,6 +463,8 @@ class MainActivity : AppCompatActivity() {
     private var bluetoothConnectedDevice: SensorBallDevice? = null
     private var bluetoothStatusMessage: String = bluetoothDisconnectedText()
     private var bluetoothBatteryText: String = "--"
+    private var bluetoothBatteryCharging: Boolean = false
+    private var latestBluetoothBatteryTelemetry: SensorBallTelemetry? = null
     private var bluetoothHitCount: Int? = null
     private var bluetoothPeakText: String = "--"
     private var bluetoothRealHitCount: Int = 0
@@ -472,6 +479,13 @@ class MainActivity : AppCompatActivity() {
     private var bluetoothScanButton: Button? = null
     private var bluetoothConnectButton: Button? = null
     private var bluetoothDisconnectButton: Button? = null
+    private var lightSwitchView: SwitchCompat? = null
+    private var lightSwitchLabelView: TextView? = null
+    private var lightBrightnessContainerView: LinearLayout? = null
+    private var lightBrightnessLabelView: TextView? = null
+    private var lightBrightnessSeekBarView: SeekBar? = null
+    private var suppressLightSwitchEvents: Boolean = false
+    private var suppressBluetoothBatteryRefreshUntilMs: Long = 0L
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -519,7 +533,7 @@ class MainActivity : AppCompatActivity() {
         initTextToSpeech()
         renderIdle()
         refreshCloudData(forceLeaderboard = true)
-        fetchCloudSoundEffects()
+        applyBundledDefaultCloudSoundEffect()
         startLaunchSplash()
         contentRootView.post { autoConnectLastBluetoothDevice() }
         contentRootView.postDelayed({ maybeShowBluetoothFirstUseGuide() }, 1200L)
@@ -533,9 +547,8 @@ class MainActivity : AppCompatActivity() {
         clearPendingTrainingCountWork()
         hitSoundHandler.removeCallbacksAndMessages(null)
         hitSoundThread.quitSafely()
-        cloudSoundEffectsLoadingJob?.cancel()
-        stopCloudEffectPreview()
         releaseCloudEffectSoundPool()
+        turnLightOffBeforeBluetoothDisconnect()
         sensorBallBluetooth.close()
         if (::splashVideoView.isInitialized) {
             try {
@@ -2165,7 +2178,7 @@ class MainActivity : AppCompatActivity() {
         applyStaticTexts()
         prepareSelectedCloudSoundEffect()
         sensorBallBluetooth.setTelemetryReadsEnabled(true)
-        sensorBallBluetooth.requestTelemetryRefresh(allowGyroscopeOffFallback = true)
+        sensorBallBluetooth.requestTelemetryRefresh(allowGyroscopeOffFallback = !lightControlEnabled)
 
         trainingJob =
             lifecycleScope.launch(Dispatchers.Main) {
@@ -2276,77 +2289,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun previewCloudSoundEffect(effect: CloudSoundEffect) {
-        stopCloudEffectPreview()
-        Toast.makeText(
-            this,
-            localText(
-                "正在试听：${cloudSoundEffectName(effect)}",
-                "Previewing: ${cloudSoundEffectName(effect)}",
-                "Écoute : ${cloudSoundEffectName(effect)}",
-                "ลองฟัง: ${cloudSoundEffectName(effect)}",
-            ),
-            Toast.LENGTH_SHORT,
-        ).show()
-        cloudEffectPreviewPlayer =
-            MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_GAME)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-                setOnPreparedListener { player ->
-                    val durationMs = player.duration.takeIf { it > 0 }?.toLong() ?: 0L
-                    val previewMs = max(CLOUD_EFFECT_PREVIEW_MIN_MS, durationMs)
-                    player.isLooping = durationMs > 0L && durationMs < previewMs
-                    player.start()
-                    cloudEffectPreviewJob?.cancel()
-                    cloudEffectPreviewJob =
-                        lifecycleScope.launch {
-                            delay(previewMs)
-                            stopCloudEffectPreview()
-                        }
-                }
-                setOnCompletionListener {
-                    stopCloudEffectPreview()
-                }
-                setOnErrorListener { _, _, _ ->
-                    stopCloudEffectPreview()
-                    Toast.makeText(
-                        this@MainActivity,
-                        localText("试听失败", "Preview failed", "Échec de l'écoute", "ฟังไม่สำเร็จ"),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                    true
-                }
-                setCloudSoundDataSource(effect.url)
-                prepareAsync()
-            }
-        prepareCloudSoundEffect(effect, playWhenReady = false)
-    }
-
-    private fun stopCloudEffectPreview() {
-        cloudEffectPreviewJob?.cancel()
-        cloudEffectPreviewJob = null
-        cloudEffectPreviewPlayer?.let { player ->
-            runCatching { player.stop() }
-            runCatching { player.release() }
-        }
-        cloudEffectPreviewPlayer = null
-    }
-
-    private fun MediaPlayer.setCloudSoundDataSource(url: String) {
-        if (url.startsWith("asset://")) {
-            val assetPath = url.removePrefix("asset://")
-            assets.openFd(assetPath).use { descriptor ->
-                setDataSource(descriptor.fileDescriptor, descriptor.startOffset, descriptor.length)
-            }
-        } else {
-            setDataSource(url)
-        }
-    }
-
     private fun prepareCloudSoundEffect(effect: CloudSoundEffect, playWhenReady: Boolean) {
         if (effect.id.isBlank() || effect.url.isBlank()) {
             return
@@ -2364,7 +2306,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val file =
                 runCatching {
-                    downloadCloudSoundEffect(effect)
+                    cacheBundledSoundEffect(effect)
                 }.getOrNull()
             withContext(Dispatchers.Main) {
                 loadingCloudEffectId = null
@@ -2391,34 +2333,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun downloadCloudSoundEffect(effect: CloudSoundEffect): File {
-        val dir = File(cacheDir, "cloud_sfx").apply { mkdirs() }
+    private fun cacheBundledSoundEffect(effect: CloudSoundEffect): File? {
+        if (!effect.url.startsWith("asset://")) {
+            return null
+        }
+        val dir = File(cacheDir, "bundled_sfx").apply { mkdirs() }
         val safeId = effect.id.replace(Regex("[^A-Za-z0-9_.-]"), "_")
         val file = File(dir, "$safeId.wav")
         if (file.exists() && file.length() > 1_024L) {
             return file
         }
-        if (effect.url.startsWith("asset://")) {
-            val assetPath = effect.url.removePrefix("asset://")
-            assets.open(assetPath).use { input ->
-                FileOutputStream(file).use { output ->
-                    input.copyTo(output)
-                }
+        val assetPath = effect.url.removePrefix("asset://")
+        assets.open(assetPath).use { input ->
+            FileOutputStream(file).use { output ->
+                input.copyTo(output)
             }
-            return file
-        }
-        val connection = URL(effect.url).openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = 6_000
-            connection.readTimeout = 12_000
-            connection.requestMethod = "GET"
-            connection.inputStream.use { input ->
-                FileOutputStream(file).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        } finally {
-            connection.disconnect()
         }
         return file
     }
@@ -5294,65 +5223,7 @@ class MainActivity : AppCompatActivity() {
             }
 
         dialogRoot.addView(createBluetoothSettingsPanel())
-        val selectedCloudEffectHolder = arrayOf(selectedCloudSoundEffectId)
-        val soundEffectCard =
-            detailCard(fillColor = "#10131C", strokeColor = "#C084FC", cornerDp = 20).apply {
-                setPadding(dp(14), dp(13), dp(14), dp(12))
-                layoutParams =
-                    LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ).apply {
-                        bottomMargin = dp(16)
-                    }
-                addView(
-                    settingsSectionHeader(
-                        title = localText("云端音效", "Cloud Sound Effects", "Sons cloud", "เสียงบนคลาวด์"),
-                        subtitle =
-                            localText(
-                                "试听后选择拳击音效，训练击打计数时会播放所选音效。",
-                                "Preview and choose the punch sound played for training hits.",
-                                "Écoutez puis choisissez le son joué à chaque frappe.",
-                                "ฟังตัวอย่างแล้วเลือกเสียงที่จะเล่นเมื่อมีการนับหมัด",
-                            ),
-                        accentColor = "#E7D7FF",
-                    ),
-                )
-            }
-        val soundEffectsContainer =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-        fun rerenderSoundEffects() {
-            renderCloudSoundEffectSettings(
-                container = soundEffectsContainer,
-                pendingSelectedId = selectedCloudEffectHolder[0],
-                onSelect = { effect ->
-                    selectedCloudEffectHolder[0] = effect.id
-                    rerenderSoundEffects()
-                },
-                onPreview = ::previewCloudSoundEffect,
-            )
-        }
-        soundEffectCard.addView(
-            compactActionButton(localText("刷新音效", "Refresh Effects", "Actualiser", "รีเฟรชเสียง"), "#17354A").apply {
-                setOnClickListener {
-                    fetchCloudSoundEffects { rerenderSoundEffects() }
-                }
-            },
-        )
-        soundEffectCard.addView(soundEffectsContainer)
-        dialogRoot.addView(soundEffectCard)
-        if (cloudSoundEffects.isEmpty()) {
-            fetchCloudSoundEffects {
-                if (selectedCloudEffectHolder[0].isBlank()) {
-                    selectedCloudEffectHolder[0] = selectedCloudSoundEffectId
-                }
-                rerenderSoundEffects()
-            }
-        } else {
-            rerenderSoundEffects()
-        }
+        dialogRoot.addView(createLightSettingsPanel())
 
         val languageCard =
             detailCard(fillColor = "#101821", strokeColor = "#2A6A8F", cornerDp = 20).apply {
@@ -5423,7 +5294,6 @@ class MainActivity : AppCompatActivity() {
                 .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                cloudSoundEffects.firstOrNull { it.id == selectedCloudEffectHolder[0] }?.let(::applyCloudSoundEffectSelection)
                 applyLanguageAndSensitivitySettings(
                     language =
                         when (languageGroup.checkedRadioButtonId) {
@@ -5443,7 +5313,11 @@ class MainActivity : AppCompatActivity() {
             bluetoothScanButton = null
             bluetoothConnectButton = null
             bluetoothDisconnectButton = null
-            stopCloudEffectPreview()
+            lightSwitchView = null
+            lightSwitchLabelView = null
+            lightBrightnessContainerView = null
+            lightBrightnessLabelView = null
+            lightBrightnessSeekBarView = null
         }
         dialog.show()
         dialog.window?.decorView?.setBackgroundColor(Color.parseColor("#1A0C00"))
@@ -5456,164 +5330,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderCloudSoundEffectSettings(
-        container: LinearLayout,
-        pendingSelectedId: String,
-        onSelect: (CloudSoundEffect) -> Unit,
-        onPreview: (CloudSoundEffect) -> Unit,
-    ) {
-        container.removeAllViews()
-        cloudSoundEffectsMessage?.takeIf { it.isNotBlank() }?.let { message ->
-            container.addView(
-                bodyText(message).apply {
-                    setTextColor(Color.parseColor("#FFD060"))
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                    setPadding(0, dp(8), 0, dp(6))
-                },
-            )
-        }
-        if (cloudSoundEffects.isEmpty()) {
-            container.addView(
-                bodyText(
-                    localText(
-                        "正在等待云端音效列表。",
-                        "Waiting for the cloud sound list.",
-                        "En attente de la liste des sons cloud.",
-                        "กำลังรอรายการเสียงบนคลาวด์",
-                    ),
-                ).apply {
-                    setTextColor(Color.parseColor("#8EA6B9"))
-                    setPadding(0, dp(4), 0, dp(10))
-                },
-            )
-            return
-        }
-        val rows =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-        cloudSoundEffects.forEach { effect ->
-            val isSelected = effect.id == pendingSelectedId
-            val row =
-                LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    background = roundedBackground(if (isSelected) "#142F42" else "#0B1721", if (isSelected) "#FF9A30" else "#243241", 14)
-                    setPadding(dp(10), dp(8), dp(10), dp(8))
-                    minimumHeight = dp(CLOUD_AUDIO_ROW_HEIGHT_DP - 10)
-                    layoutParams =
-                        LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ).apply {
-                            topMargin = dp(7)
-                        }
-                    setOnClickListener { onSelect(effect) }
-                }
-            row.addView(
-                RadioButton(this).apply {
-                    isChecked = isSelected
-                    setOnClickListener { onSelect(effect) }
-                },
-            )
-            row.addView(
-                LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    addView(
-                        bodyText(cloudSoundEffectName(effect)).apply {
-                            setTypeface(Typeface.DEFAULT_BOLD)
-                            setTextColor(Color.parseColor("#FFF8E8"))
-                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                        },
-                    )
-                    addView(
-                        bodyText(cloudSoundEffectDescription(effect)).apply {
-                            setTextColor(Color.parseColor("#8EA6B9"))
-                            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
-                            setPadding(0, dp(2), 0, 0)
-                        },
-                    )
-                },
-            )
-            row.addView(
-                compactActionButton(localText("试听", "Preview", "Écouter", "ลองฟัง"), "#0A3A24").apply {
-                    setOnClickListener { onPreview(effect) }
-                },
-            )
-            rows.addView(row)
-        }
-        container.addView(limitedCloudAudioListHost(cloudSoundEffects.size).apply { addView(rows) })
+    private fun applyDefaultCloudSoundEffect() {
+        cloudSoundEffects.firstOrNull()?.let(::applyCloudSoundEffectSelection)
     }
 
-    private fun limitedCloudAudioListHost(itemCount: Int): ScrollView =
-        ScrollView(this).apply {
-            isVerticalScrollBarEnabled = itemCount > CLOUD_AUDIO_MAX_VISIBLE_ROWS
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
-            layoutParams =
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    if (itemCount > CLOUD_AUDIO_MAX_VISIBLE_ROWS) {
-                        dp(CLOUD_AUDIO_MAX_VISIBLE_ROWS * CLOUD_AUDIO_ROW_HEIGHT_DP)
-                    } else {
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    },
-                )
+    private fun applyBundledDefaultCloudSoundEffect() {
+        if (cloudSoundEffects.isEmpty()) {
+            cloudSoundEffects = bundledCloudSoundEffects().take(1)
         }
-
-    private fun fetchCloudSoundEffects(onDone: (() -> Unit)? = null) {
-        if (cloudSoundEffectsLoadingJob?.isActive == true) {
-            onDone?.let { callback ->
-                cloudSoundEffectsLoadingJob?.invokeOnCompletion {
-                    runOnUiThread { callback() }
-                }
-            }
-            return
-        }
-        cloudSoundEffectsMessage = localText("正在拉取云端音效...", "Fetching cloud effects...", "Chargement des sons cloud...", "กำลังโหลดเสียงบนคลาวด์...")
-        cloudSoundEffectsLoadingJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result = cloudSyncService.fetchSoundEffects()
-                withContext(Dispatchers.Main) {
-                    cloudSoundEffectsLoadingJob = null
-                    if (result.success) {
-                        cloudSoundEffects = result.items.ifEmpty { bundledCloudSoundEffects() }
-                        cloudSoundEffectsMessage =
-                            localText(
-                                "已加载 ${cloudSoundEffects.size} 个云端音效。",
-                                "Loaded ${cloudSoundEffects.size} cloud effects.",
-                                "${cloudSoundEffects.size} sons chargés.",
-                                "โหลดเสียงแล้ว ${cloudSoundEffects.size} รายการ",
-                            )
-                    } else {
-                        cloudSoundEffects = bundledCloudSoundEffects()
-                        cloudSoundEffectsMessage =
-                            if (cloudSoundEffects.isNotEmpty()) {
-                                localText(
-                                    "云端暂不可达，已使用内置音效。",
-                                    "Cloud unavailable. Using bundled effects.",
-                                    "Cloud indisponible. Sons intégrés utilisés.",
-                                    "คลาวด์ไม่พร้อม ใช้เสียงในเครื่อง",
-                                )
-                            } else {
-                                localText(
-                                    "云端音效加载失败：${result.message}",
-                                    "Cloud effects failed: ${result.message}",
-                                    "Échec des sons cloud : ${result.message}",
-                                    "โหลดเสียงไม่สำเร็จ: ${result.message}",
-                                )
-                            }
-                    }
-                    if (selectedCloudSoundEffectId.isBlank() && cloudSoundEffects.isNotEmpty()) {
-                        applyCloudSoundEffectSelection(cloudSoundEffects.first())
-                    } else {
-                        cloudSoundEffects.firstOrNull { it.id == selectedCloudSoundEffectId }
-                            ?.let { prepareCloudSoundEffect(it, playWhenReady = false) }
-                    }
-                    onDone?.invoke()
-                }
-            }
+        applyDefaultCloudSoundEffect()
     }
 
     private fun cloudSoundEffectName(effect: CloudSoundEffect): String =
@@ -5735,6 +5460,7 @@ class MainActivity : AppCompatActivity() {
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                             setOnClickListener {
                                 runWithBluetoothPermissions {
+                                    turnLightOffBeforeBluetoothDisconnect()
                                     sensorBallBluetooth.disconnect()
                                 }
                             }
@@ -5750,6 +5476,160 @@ class MainActivity : AppCompatActivity() {
             addView(bluetoothDeviceListView)
 
             updateBluetoothSettingsViews()
+        }
+
+    private fun createLightSettingsPanel(): LinearLayout =
+        detailCard(fillColor = "#101A14", strokeColor = "#FFD060", cornerDp = 20).apply {
+            setPadding(dp(14), dp(13), dp(14), dp(14))
+            layoutParams =
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(16) }
+
+            addView(
+                settingsSectionHeader(
+                    title = localText("灯光控制", "Light Control", "Contrôle de l'éclairage", "ควบคุมไฟ"),
+                    subtitle =
+                        localText(
+                            "连接蓝牙后控制 LED 灯光，并保存默认亮度。",
+                            "Control the LED after Bluetooth is connected and save the default brightness.",
+                            "Contrôlez la LED après connexion Bluetooth et enregistrez la luminosité par défaut.",
+                            "ควบคุมไฟ LED หลังเชื่อมต่อบลูทูธและบันทึกค่าความสว่างเริ่มต้น",
+                        ),
+                    accentColor = "#FFD060",
+                ),
+            )
+
+            val brightnessLabel =
+                bodyText(lightBrightnessText(lightBrightness)).apply {
+                    lightBrightnessLabelView = this
+                    setTextColor(Color.parseColor("#FFF0C9"))
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    setPadding(0, 0, 0, dp(6))
+                }
+            val brightnessSeekBar =
+                SeekBar(this@MainActivity).apply {
+                    lightBrightnessSeekBarView = this
+                    max = MAX_LIGHT_BRIGHTNESS
+                    progress = lightBrightness.coerceIn(0, MAX_LIGHT_BRIGHTNESS)
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        )
+                }
+            val brightnessContainer =
+                LinearLayout(this@MainActivity).apply {
+                    lightBrightnessContainerView = this
+                    orientation = LinearLayout.VERTICAL
+                    visibility = if (lightControlEnabled) View.VISIBLE else View.GONE
+                    setPadding(dp(10), dp(10), dp(10), dp(6))
+                    background = roundedBackground("#1D2010", "#5C4A1D", 16)
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply { topMargin = dp(10) }
+                    addView(brightnessLabel)
+                    addView(brightnessSeekBar)
+                }
+
+            val lightSwitch =
+                SwitchCompat(this@MainActivity).apply {
+                    lightSwitchView = this
+                    text = lightSwitchText(lightControlEnabled)
+                    setTextColor(Color.WHITE)
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    isChecked = lightControlEnabled
+                    showText = false
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        )
+                    applyLightSwitchColors(this)
+                }
+            addView(
+                LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(10), dp(10), dp(10), dp(10))
+                    background = roundedBackground("#1A1A0C", "#4C3B14", 16)
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply { topMargin = dp(10) }
+                    addView(
+                        bodyText(lightSwitchText(lightControlEnabled)).apply {
+                            setTextColor(Color.parseColor("#FFF8E6"))
+                            setTypeface(Typeface.DEFAULT_BOLD)
+                            layoutParams =
+                                LinearLayout.LayoutParams(
+                                    0,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    1f,
+                                )
+                        },
+                    )
+                    addView(lightSwitch)
+                },
+            )
+            addView(brightnessContainer)
+
+            val switchLabel = ((lightSwitch.parent as? LinearLayout)?.getChildAt(0) as? TextView)
+            lightSwitchLabelView = switchLabel
+            lightSwitch.setOnCheckedChangeListener { _, checked ->
+                if (suppressLightSwitchEvents) {
+                    return@setOnCheckedChangeListener
+                }
+                if (checked && bluetoothConnectedDevice == null) {
+                    lightControlEnabled = false
+                    saveLightSettings()
+                    bluetoothStatusMessage = bluetoothConnectFirstText()
+                    updateBluetoothSettingsViews()
+                    return@setOnCheckedChangeListener
+                }
+                lightControlEnabled = checked
+                brightnessContainer.visibility = if (checked) View.VISIBLE else View.GONE
+                switchLabel?.text = lightSwitchText(checked)
+                lightSwitch.text = lightSwitchText(checked)
+                saveLightSettings()
+                if (bluetoothConnectedDevice != null) {
+                    runWithBluetoothPermissions {
+                        applyLightControlToDevice(notify = true)
+                    }
+                }
+            }
+            brightnessSeekBar.setOnSeekBarChangeListener(
+                object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(
+                        seekBar: SeekBar?,
+                        progress: Int,
+                        fromUser: Boolean,
+                    ) {
+                        lightBrightness = progress.coerceIn(0, MAX_LIGHT_BRIGHTNESS)
+                        brightnessLabel.text = lightBrightnessText(lightBrightness)
+                        if (fromUser) {
+                            saveLightSettings()
+                        }
+                    }
+
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                        saveLightSettings()
+                        if (lightControlEnabled) {
+                            runWithBluetoothPermissions {
+                                applyLightControlToDevice(notify = true)
+                            }
+                        }
+                    }
+                },
+            )
+            updateLightSettingsViews()
         }
 
     private fun settingsSectionHeader(title: String, subtitle: String, accentColor: String): LinearLayout =
@@ -5881,7 +5761,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyBluetoothBatteryTelemetry(telemetry: SensorBallTelemetry) {
-        bluetoothBatteryText = telemetry.batteryText
+        latestBluetoothBatteryTelemetry = telemetry
+        bluetoothBatteryText = bluetoothBatteryDisplayText(telemetry)
+        bluetoothBatteryCharging = telemetry.isCharging
+    }
+
+    private fun bluetoothBatteryDisplayText(telemetry: SensorBallTelemetry): String =
+        when {
+            telemetry.batteryRaw == 101 -> ""
+            telemetry.batteryRaw == 102 -> {
+                if (selectedLanguage == AppLanguage.Chinese) "充满" else "Full"
+            }
+            telemetry.batteryRaw in 0..100 && telemetry.chargingFlag == 1 -> "${telemetry.batteryRaw}%"
+            telemetry.batteryRaw in 0..100 -> "${telemetry.batteryRaw}%"
+            else -> "--"
+        }
+
+    private fun refreshBluetoothBatteryTextForLanguage() {
+        latestBluetoothBatteryTelemetry?.let { telemetry ->
+            bluetoothBatteryText = bluetoothBatteryDisplayText(telemetry)
+            bluetoothBatteryCharging = telemetry.isCharging
+        }
     }
 
     private fun startBluetoothBatteryRefreshLoop() {
@@ -5894,11 +5794,18 @@ class MainActivity : AppCompatActivity() {
                         delay(BLUETOOTH_BATTERY_REFRESH_NORMAL_MS)
                         continue
                     }
-                    val allowGyroscopeOffFallback = trainingJob?.isActive != true && !bluetoothGyroscopeEnabled
-                    val charging = bluetoothBatteryText == "充电"
+                    if (SystemClock.elapsedRealtime() < suppressBluetoothBatteryRefreshUntilMs) {
+                        delay(200L)
+                        continue
+                    }
+                    val allowGyroscopeOffFallback =
+                        trainingJob?.isActive != true &&
+                            !bluetoothGyroscopeEnabled &&
+                            !lightControlEnabled
+                    val charging = bluetoothBatteryCharging
                     sensorBallBluetooth.requestTelemetryRefresh(
                         allowGyroscopeOffFallback = allowGyroscopeOffFallback,
-                        forceGyroscopeOffFallback = charging,
+                        forceGyroscopeOffFallback = charging && !lightControlEnabled,
                     )
                     delay(
                         if (charging) {
@@ -6005,11 +5912,57 @@ class MainActivity : AppCompatActivity() {
         bluetoothHeaderIndicatorView.contentDescription =
             if (connected) "Bluetooth connected" else "Bluetooth disconnected"
         val batteryText = bluetoothBatteryText.takeIf { it != "--" } ?: if (connected) "..." else "--"
+        val showChargingIcon = connected && bluetoothBatteryCharging
+        val useBatteryIconFrame = connected && !showChargingIcon && batteryText.matches(Regex("\\d{1,3}%"))
         batteryHeaderView.text = batteryText
+        batteryHeaderView.layoutParams =
+            (batteryHeaderView.layoutParams as? LinearLayout.LayoutParams)?.apply {
+                width = if (useBatteryIconFrame) dp(36) else ViewGroup.LayoutParams.WRAP_CONTENT
+                height = if (useBatteryIconFrame) dp(16) else dp(18)
+            }
+        batteryHeaderView.minWidth =
+            when {
+                useBatteryIconFrame -> dp(36)
+                showChargingIcon && batteryText.isBlank() -> dp(26)
+                else -> dp(34)
+            }
+        batteryHeaderView.setPadding(
+            if (useBatteryIconFrame) 0 else dp(6),
+            0,
+            if (useBatteryIconFrame) dp(4) else dp(6),
+            0,
+        )
+        batteryHeaderView.compoundDrawablePadding = if (showChargingIcon && batteryText.isNotBlank()) dp(2) else 0
+        if (showChargingIcon) {
+            val boltDrawable = ContextCompat.getDrawable(this, R.drawable.ic_battery_charging_bolt)?.mutate()
+            boltDrawable?.setTint(Color.parseColor("#FFD060"))
+            boltDrawable?.setBounds(0, 0, dp(12), dp(12))
+            batteryHeaderView.setCompoundDrawables(boltDrawable, null, null, null)
+        } else {
+            batteryHeaderView.setCompoundDrawables(null, null, null, null)
+        }
         batteryHeaderView.setTextColor(Color.parseColor(if (connected) "#FFFFFF" else "#AAB3C2"))
-        batteryHeaderView.setBackgroundResource(R.drawable.battery_status_background)
+        if (useBatteryIconFrame) {
+            batteryHeaderView.setBackgroundResource(R.drawable.battery_status_background)
+        } else {
+            batteryHeaderView.background =
+                roundedBackground(
+                    fillColor = if (connected) "#20242B" else "#141820",
+                    strokeColor = if (connected) "#AAB3C2" else "#4E5662",
+                    cornerDp = 8,
+                )
+        }
         batteryHeaderView.contentDescription =
-            localText("电量 $batteryText", "Battery $batteryText", "Batterie $batteryText", "แบตเตอรี่ $batteryText")
+            if (showChargingIcon) {
+                localText(
+                    if (batteryText.isBlank()) "正在充电" else "正在充电 $batteryText",
+                    if (batteryText.isBlank()) "Charging" else "Charging $batteryText",
+                    if (batteryText.isBlank()) "En charge" else "En charge $batteryText",
+                    if (batteryText.isBlank()) "กำลังชาร์จ" else "กำลังชาร์จ $batteryText",
+                )
+            } else {
+                localText("电量 $batteryText", "Battery $batteryText", "Batterie $batteryText", "แบตเตอรี่ $batteryText")
+            }
     }
 
     private fun updateBluetoothActionButtons() {
@@ -6018,7 +5971,126 @@ class MainActivity : AppCompatActivity() {
         setBluetoothButtonEnabled(bluetoothScanButton, !connected)
         setBluetoothButtonEnabled(bluetoothConnectButton, !connected && selected)
         setBluetoothButtonEnabled(bluetoothDisconnectButton, connected)
+        updateLightSettingsViews()
     }
+
+    private fun applyLightControlToDevice(notify: Boolean): Boolean {
+        pauseBatteryRefreshForLightCommand()
+        val sent =
+            sensorBallBluetooth.setLightEnabled(
+                enabled = lightControlEnabled,
+                brightness = lightBrightness.coerceIn(0, MAX_LIGHT_BRIGHTNESS),
+                notify = notify,
+            )
+        resumeBatteryRefreshAfterLightCommand()
+        return sent
+    }
+
+    private fun pauseBatteryRefreshForLightCommand() {
+        suppressBluetoothBatteryRefreshUntilMs = SystemClock.elapsedRealtime() + LIGHT_COMMAND_REFRESH_PAUSE_MS
+        if (trainingJob?.isActive != true && !bluetoothCountingActive && !bluetoothGyroscopeEnabled) {
+            stopBluetoothBatteryRefreshLoop()
+        }
+    }
+
+    private fun resumeBatteryRefreshAfterLightCommand() {
+        mainHandler.postDelayed(
+            {
+                if (
+                    bluetoothConnectedDevice != null &&
+                    trainingJob?.isActive != true &&
+                    !bluetoothCountingActive &&
+                    !bluetoothGyroscopeEnabled
+                ) {
+                    startBluetoothBatteryRefreshLoop()
+                }
+            },
+            LIGHT_COMMAND_REFRESH_PAUSE_MS,
+        )
+    }
+
+    private fun turnLightOffBeforeBluetoothDisconnect() {
+        if (bluetoothConnectedDevice != null) {
+            sensorBallBluetooth.setLightEnabled(enabled = false, brightness = lightBrightness, notify = false)
+        }
+        turnLightOffBecauseBluetoothUnavailable()
+    }
+
+    private fun turnLightOffBecauseBluetoothUnavailable() {
+        if (lightControlEnabled) {
+            lightControlEnabled = false
+            saveLightSettings()
+        }
+        updateLightSettingsViews()
+    }
+
+    private fun updateLightSettingsViews() {
+        val connected = bluetoothConnectedDevice != null
+        if (!connected && lightControlEnabled) {
+            lightControlEnabled = false
+            saveLightSettings()
+        }
+        suppressLightSwitchEvents = true
+        lightSwitchView?.isChecked = lightControlEnabled
+        suppressLightSwitchEvents = false
+        lightSwitchView?.isEnabled = connected
+        lightSwitchView?.alpha = if (connected) 1.0f else 0.42f
+        lightSwitchLabelView?.text = lightSwitchText(lightControlEnabled)
+        lightSwitchLabelView?.alpha = if (connected) 1.0f else 0.64f
+        lightBrightnessContainerView?.visibility = if (connected && lightControlEnabled) View.VISIBLE else View.GONE
+        lightBrightnessLabelView?.text = lightBrightnessText(lightBrightness)
+        lightBrightnessSeekBarView?.progress = lightBrightness.coerceIn(0, MAX_LIGHT_BRIGHTNESS)
+        lightBrightnessSeekBarView?.isEnabled = connected && lightControlEnabled
+    }
+
+    private fun applyLightSwitchColors(switchView: SwitchCompat) {
+        val states =
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked, android.R.attr.state_enabled),
+                intArrayOf(-android.R.attr.state_checked, android.R.attr.state_enabled),
+                intArrayOf(-android.R.attr.state_enabled),
+            )
+        switchView.thumbTintList =
+            ColorStateList(
+                states,
+                intArrayOf(
+                    Color.parseColor("#35FF8A"),
+                    Color.parseColor("#FF4A6A"),
+                    Color.parseColor("#7E8794"),
+                ),
+            )
+        switchView.trackTintList =
+            ColorStateList(
+                states,
+                intArrayOf(
+                    Color.parseColor("#335C3D"),
+                    Color.parseColor("#5C1D2A"),
+                    Color.parseColor("#2E3540"),
+                ),
+            )
+    }
+
+    private fun saveLightSettings() {
+        prefs.edit()
+            .putBoolean(KEY_LIGHT_ENABLED, lightControlEnabled)
+            .putInt(KEY_LIGHT_BRIGHTNESS, lightBrightness.coerceIn(0, MAX_LIGHT_BRIGHTNESS))
+            .apply()
+    }
+
+    private fun lightSwitchText(enabled: Boolean): String =
+        if (enabled) {
+            localText("灯光：开", "Light: On", "Éclairage : activé", "ไฟ: เปิด")
+        } else {
+            localText("灯光：关", "Light: Off", "Éclairage : désactivé", "ไฟ: ปิด")
+        }
+
+    private fun lightBrightnessText(value: Int): String =
+        localText(
+            "亮度：${value.coerceIn(0, MAX_LIGHT_BRIGHTNESS)}%",
+            "Brightness: ${value.coerceIn(0, MAX_LIGHT_BRIGHTNESS)}%",
+            "Luminosité : ${value.coerceIn(0, MAX_LIGHT_BRIGHTNESS)}%",
+            "ความสว่าง: ${value.coerceIn(0, MAX_LIGHT_BRIGHTNESS)}%",
+        )
 
     private fun setBluetoothButtonEnabled(button: Button?, enabled: Boolean) {
         button?.isEnabled = enabled
@@ -6324,6 +6396,7 @@ class MainActivity : AppCompatActivity() {
         selectedLanguage = language
         saveSettings()
         updateTtsLanguage()
+        refreshBluetoothBatteryTextForLanguage()
         clearLanguageSensitiveFallbackMessages()
         if (isActivated()) {
             renderIdle()
@@ -6337,6 +6410,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             renderActivationRequired()
         }
+        updateBluetoothSettingsViews()
     }
 
     private fun clearLanguageSensitiveFallbackMessages() {
@@ -7569,11 +7643,15 @@ class MainActivity : AppCompatActivity() {
         selectedCloudSoundEffectId = prefs.getString(KEY_CLOUD_SOUND_EFFECT_ID, "").orEmpty()
         selectedCloudSoundEffectName = prefs.getString(KEY_CLOUD_SOUND_EFFECT_NAME, "").orEmpty()
         selectedCloudSoundEffectUrl = prefs.getString(KEY_CLOUD_SOUND_EFFECT_URL, "").orEmpty()
+        lightControlEnabled = false
+        lightBrightness = prefs.getInt(KEY_LIGHT_BRIGHTNESS, DEFAULT_LIGHT_BRIGHTNESS).coerceIn(0, MAX_LIGHT_BRIGHTNESS)
     }
 
     private fun saveSettings() {
         prefs.edit()
             .putString(KEY_LANGUAGE, selectedLanguage.storageValue)
+            .putBoolean(KEY_LIGHT_ENABLED, lightControlEnabled)
+            .putInt(KEY_LIGHT_BRIGHTNESS, lightBrightness.coerceIn(0, MAX_LIGHT_BRIGHTNESS))
             .apply()
     }
 
@@ -9614,6 +9692,8 @@ class MainActivity : AppCompatActivity() {
         const val KEY_CLOUD_SOUND_EFFECT_ID = "training_cloud_sound_effect_id"
         const val KEY_CLOUD_SOUND_EFFECT_NAME = "training_cloud_sound_effect_name"
         const val KEY_CLOUD_SOUND_EFFECT_URL = "training_cloud_sound_effect_url"
+        const val KEY_LIGHT_ENABLED = "light_control_enabled"
+        const val KEY_LIGHT_BRIGHTNESS = "light_brightness"
         const val KEY_LAST_BLUETOOTH_NAME = "last_bluetooth_name"
         const val KEY_LAST_BLUETOOTH_ADDRESS = "last_bluetooth_address"
         const val KEY_LAST_BLUETOOTH_TRANSPORT = "last_bluetooth_transport"
@@ -9622,15 +9702,15 @@ class MainActivity : AppCompatActivity() {
         const val KEY_LAST_BLUETOOTH_BLE_ADDRESS = "last_bluetooth_ble_address"
         const val KEY_LAST_BLUETOOTH_CLASSIC_ADDRESS = "last_bluetooth_classic_address"
         const val KEY_BLUETOOTH_FIRST_USE_GUIDE_SHOWN = "bluetooth_first_use_guide_shown"
+        const val DEFAULT_LIGHT_BRIGHTNESS = 20
+        const val MAX_LIGHT_BRIGHTNESS = 100
+        const val LIGHT_COMMAND_REFRESH_PAUSE_MS = 1_200L
         const val DEVELOPER_COMPANY_NAME_ZH = "绍兴维脉科技有限公司"
         const val DEVELOPER_COMPANY_NAME_EN = "Shaoxing Weimai Technology Co., Ltd."
         const val DEVELOPER_COMPANY_NAME_FR = "Société Shaoxing Weimai Technology Co., Ltd."
         const val DEVELOPER_COMPANY_NAME_TH = "บริษัท Shaoxing Weimai Technology Co., Ltd."
         const val DEVELOPER_EMAIL = "zclei@vip.sina.com"
         const val DEVELOPER_EMAIL_SUBJECT = "Smart sensor ball APP咨询"
-        const val CLOUD_EFFECT_PREVIEW_MIN_MS = 5_000L
-        const val CLOUD_AUDIO_MAX_VISIBLE_ROWS = 5
-        const val CLOUD_AUDIO_ROW_HEIGHT_DP = 78
         const val BLUETOOTH_BATTERY_REFRESH_CHARGING_MS = 1_200L
         const val BLUETOOTH_BATTERY_REFRESH_NORMAL_MS = 3_000L
     }

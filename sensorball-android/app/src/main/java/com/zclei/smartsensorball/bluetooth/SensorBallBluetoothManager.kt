@@ -44,6 +44,7 @@ enum class SensorBallTransport {
 data class SensorBallTelemetry(
     val packetIndex: Int,
     val batteryRaw: Int,
+    val chargingFlag: Int,
     val hitCount: Int,
     val forceLow: Int,
     val forceHigh: Int,
@@ -52,11 +53,14 @@ data class SensorBallTelemetry(
     val peak: Int
         get() = forceN
 
+    val isCharging: Boolean
+        get() = batteryRaw == 101 || chargingFlag == 1
+
     val batteryText: String =
-        when (batteryRaw) {
-            101 -> "充电"
-            102 -> "充满"
-            in 0..100 -> "$batteryRaw%"
+        when {
+            batteryRaw == 101 -> ""
+            batteryRaw == 102 -> "充满"
+            batteryRaw in 0..100 -> "$batteryRaw%"
             else -> "--"
         }
 }
@@ -293,6 +297,24 @@ class SensorBallBluetoothManager(
         val payload = gyroscopePayload(enabled)
         val successMessage = if (enabled) "已发送开启陀螺仪指令" else "已发送关闭陀螺仪指令"
         return writeControlPayload(payload, successMessage = successMessage, failureMessage = "指令发送失败")
+    }
+
+    @SuppressLint("MissingPermission")
+    fun setLightEnabled(
+        enabled: Boolean,
+        brightness: Int,
+        notify: Boolean = true,
+    ): Boolean {
+        val payload = lightPayload(enabled, brightness)
+        val successMessage =
+            if (!notify) {
+                null
+            } else if (enabled) {
+                "已发送打开灯光指令，亮度 ${brightness.coerceIn(0, LIGHT_BRIGHTNESS_MAX)}"
+            } else {
+                "已发送关闭灯光指令"
+            }
+        return writeControlPayload(payload, successMessage = successMessage, failureMessage = if (notify) "灯光指令发送失败" else null)
     }
 
     fun setTelemetryReadsEnabled(enabled: Boolean) {
@@ -685,6 +707,7 @@ class SensorBallBluetoothManager(
                 val telemetry = SensorBallTelemetry(
                     packetIndex = value[index + 3].toInt() and 0xFF,
                     batteryRaw = value[index + 4].toInt() and 0xFF,
+                    chargingFlag = value[index + 6].toInt() and 0xFF,
                     hitCount = value[index + 5].toInt() and 0xFF,
                     forceLow = forceLow,
                     forceHigh = forceHigh,
@@ -704,6 +727,16 @@ class SensorBallBluetoothManager(
 
     private fun gyroscopePayload(enabled: Boolean): ByteArray =
         byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x04, if (enabled) 0x01 else 0x00)
+
+    private fun lightPayload(
+        enabled: Boolean,
+        brightness: Int,
+    ): ByteArray =
+        if (enabled) {
+            byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x07, 0x01, brightness.coerceIn(0, LIGHT_BRIGHTNESS_MAX).toByte())
+        } else {
+            byteArrayOf(0xC5.toByte(), 0x5C.toByte(), 0x07, 0x00)
+        }
 
     @SuppressLint("MissingPermission")
     private fun tryPendingClassicFallback(reason: String): Boolean {
@@ -947,6 +980,7 @@ class SensorBallBluetoothManager(
     private companion object {
         const val DEVICE_PREFIX = "SENBALL#"
         const val TELEMETRY_PACKET_SIZE = 11
+        const val LIGHT_BRIGHTNESS_MAX = 99
         const val BLE_CONNECTION_TIMEOUT_MS = 12_000L
         const val INITIAL_RECONNECT_DELAY_MS = 800L
         const val MAX_RECONNECT_DELAY_MS = 8_000L

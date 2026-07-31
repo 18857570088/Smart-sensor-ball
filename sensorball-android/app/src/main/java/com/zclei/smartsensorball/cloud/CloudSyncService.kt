@@ -97,12 +97,6 @@ class CloudSyncService(
             },
         )
 
-    fun fetchSoundEffects(): CloudSoundEffectCatalog =
-        getJson(
-            path = "/api/v1/sound-effects",
-            parser = ::parseSoundEffectCatalog,
-        )
-
     private fun authPayload(
         state: ActivationState,
         appVersion: String,
@@ -258,46 +252,6 @@ class CloudSyncService(
             me = json?.optJSONObject("me")?.let(::parseLeaderboardEntry),
         )
     }
-
-    private fun parseSoundEffectCatalog(
-        responseCode: Int,
-        json: JSONObject?,
-        fallbackBody: String,
-    ): CloudSoundEffectCatalog {
-        val success = responseCode in 200..299 && json?.optString("status") == "ok"
-        return CloudSoundEffectCatalog(
-            success = success,
-            message = json?.optString("message").orEmpty().ifBlank { fallbackBody.ifBlank { "Request failed." } },
-            version = json?.optInt("version") ?: 0,
-            updatedAt = normalizedNullableString(json?.optString("updated_at")),
-            items = json?.optJSONArray("items")?.let(::parseSoundEffects).orEmpty(),
-        )
-    }
-
-    private fun parseSoundEffects(json: JSONArray): List<CloudSoundEffect> =
-        buildList {
-            for (index in 0 until json.length()) {
-                val item = json.optJSONObject(index) ?: continue
-                val id = item.optString("id")
-                val url = item.optString("url")
-                if (id.isBlank() || url.isBlank()) {
-                    continue
-                }
-                add(
-                    CloudSoundEffect(
-                        id = id,
-                        nameZh = item.optString("name_zh").ifBlank { item.optString("name_en") },
-                        nameEn = item.optString("name_en").ifBlank { item.optString("name_zh") },
-                        descriptionZh = item.optString("description_zh").ifBlank { item.optString("description_en") },
-                        descriptionEn = item.optString("description_en").ifBlank { item.optString("description_zh") },
-                        style = item.optString("style"),
-                        bpm = item.optInt("bpm"),
-                        durationMs = item.optInt("duration_ms"),
-                        url = url,
-                    ),
-                )
-            }
-        }
 
     private fun parseProfile(json: JSONObject): CloudUserProfile =
         CloudUserProfile(
