@@ -8,12 +8,3 @@ data class ActivationState(
     val activatedAtEpochMs: Long,
     val lastCheckAtEpochMs: Long,
 )
-
-data class ActivationApiResult(
-    val success: Boolean,
-    val message: String,
-    val reason: String? = null,
-    val serial: String? = null,
-    val activationToken: String? = null,
-    val licenseState: String? = null,
-)

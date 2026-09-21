@@ -1,7 +1,7 @@
 import Foundation
 
 private enum AppAPIConfig {
-    static let baseURL = URL(string: "https://sensorball.86086.cn/sensorball/api/v1/")!
+    static let baseURL = URL(string: "https://sensorball.wavemill.cn/sensorball/api/v1/")!
 }
 
 struct SensorBallAPIClient {

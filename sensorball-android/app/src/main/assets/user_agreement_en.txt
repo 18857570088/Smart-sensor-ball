@@ -7,6 +7,7 @@ This agreement applies to the Smart sensor ball app and related smart boxing bal
 
 2. Services
 The app provides Bluetooth device connection, boxing count, training modes, training records, achievements, leaderboards, profile features, and language settings. Some features depend on the smart boxing ball hardware, phone Bluetooth, network connection, and cloud services.
+No product serial number or activation code is required to use the product, and the app does not include a product activation process.
 
 3. Safe Use
 Use the product in a safe and suitable sports environment. Before training, check the ball, rope, wearing method, and surrounding space. Train according to your physical condition and stop immediately if you feel unwell.

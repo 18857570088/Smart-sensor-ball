@@ -28,7 +28,6 @@ import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.InputFilter
-import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -64,10 +63,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import com.zclei.smartsensorball.auth.ActivationApiResult
-import com.zclei.smartsensorball.auth.ActivationService
 import com.zclei.smartsensorball.auth.ActivationState
 import com.zclei.smartsensorball.cloud.CloudBootstrapResult
 import com.zclei.smartsensorball.cloud.CloudAchievementItem
@@ -177,7 +173,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedLanguage: AppLanguage = defaultLanguage()
     private var selectedHomePage: HomePage = HomePage.TrainingCenter
     private var trainingJob: Job? = null
-    private var activationJob: Job? = null
     private var bluetoothBatteryRefreshJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bluetoothCountLock = Any()
@@ -203,9 +198,6 @@ class MainActivity : AppCompatActivity() {
     private var activationState: ActivationState? = null
     private var installId: String = ""
     private var deviceHash: String = ""
-    private var authStatusMessageKey: String? = null
-    private var authStatusFallbackMessage: String? = null
-    private var authStatusColor: Int = Color.parseColor("#FFD060")
     private var cloudJob: Job? = null
     private var cloudProfile: CloudUserProfile? = null
     private var cloudStatistics: CloudUserStatistics? = null
@@ -218,14 +210,12 @@ class MainActivity : AppCompatActivity() {
     private var cloudStatusFallbackMessage: String? = null
     private var cloudStatusColor: Int = Color.parseColor("#FFD060")
     private var pendingAvatarSelection: ((Uri?) -> Unit)? = null
-    private var autoRestoreAttempted = false
     private var splashDismissed = false
     private var celebrationShowing = false
     private var dismissingCelebrationForTraining = false
     private var activeCelebrationDialog: AlertDialog? = null
     private val celebrationQueue: ArrayDeque<() -> Unit> = ArrayDeque()
 
-    private val activationService = ActivationService()
     private val cloudSyncService = CloudSyncService()
     private var cloudSoundEffects: List<CloudSoundEffect> = emptyList()
     private var selectedCloudSoundEffectId: String = ""
@@ -323,17 +313,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var trainingPlayBodyView: TextView
     private lateinit var trainingPlayProgressView: TextView
 
-    private lateinit var activationCard: LinearLayout
-    private lateinit var activationTitleView: TextView
-    private lateinit var activationHintView: TextView
-    private lateinit var serialInput: EditText
-    private lateinit var codeInput: EditText
-    private lateinit var serialInputErrorView: TextView
-    private lateinit var codeInputErrorView: TextView
-    private var activationInputsValid: Boolean = false
-    private lateinit var activateButton: Button
-    private lateinit var authStatusView: TextView
-    private lateinit var activationDetailsView: TextView
     private lateinit var pageTabsCard: LinearLayout
     private lateinit var pageTrainingButton: TextView
     private lateinit var pageAchievementsButton: TextView
@@ -350,14 +329,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pageAchievementsContainer: LinearLayout
     private lateinit var pageLeaderboardContainer: LinearLayout
     private lateinit var pageProfileContainer: LinearLayout
-    private val hideActivationCardRunnable =
-        Runnable {
-            if (isActivated() && trainingJob?.isActive != true) {
-                setActivationVisible(false)
-                clearAuthStatusMessage()
-            }
-        }
-
     private val prefs by lazy {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
     }
@@ -376,6 +347,18 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         bluetoothDevices.clear()
                         bluetoothDevices.addAll(devices)
+                        val autoConnectMatch =
+                            pendingLaunchAutoConnectDevice?.let { savedDevice ->
+                                devices.firstOrNull { discovered -> discovered.matchesBluetoothDevice(savedDevice) }
+                            }
+                        if (autoConnectMatch != null && bluetoothConnectedDevice == null) {
+                            pendingLaunchAutoConnectDevice = null
+                            selectedBluetoothDevice = autoConnectMatch
+                            bluetoothStatusMessage = bluetoothAutoConnectingText(autoConnectMatch.name)
+                            updateBluetoothSettingsViews()
+                            sensorBallBluetooth.connect(autoConnectMatch)
+                            return@runOnUiThread
+                        }
                         if (bluetoothConnectedDevice == null && devices.size == 1) {
                             selectedBluetoothDevice = devices.first()
                         }
@@ -395,6 +378,7 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onConnected(device: SensorBallDevice) {
                     runOnUiThread {
+                        pendingLaunchAutoConnectDevice = null
                         val reconnectingDuringTraining = trainingJob?.isActive == true && bluetoothGyroscopeEnabled
                         selectedBluetoothDevice = device
                         bluetoothConnectedDevice = device
@@ -472,6 +456,7 @@ class MainActivity : AppCompatActivity() {
     private val pendingBluetoothGyroHitTimes = ArrayDeque<Long>()
     private var bluetoothGyroscopeEnabled: Boolean = false
     private var pendingBluetoothAction: (() -> Unit)? = null
+    private var pendingLaunchAutoConnectDevice: SensorBallDevice? = null
     private var bluetoothStatusView: TextView? = null
     private var bluetoothDeviceListView: LinearLayout? = null
     private var bluetoothBatteryView: TextView? = null
@@ -541,7 +526,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         trainingJob?.cancel()
-        activationJob?.cancel()
         cloudJob?.cancel()
         stopBluetoothBatteryRefreshLoop()
         clearPendingTrainingCountWork()
@@ -700,89 +684,6 @@ class MainActivity : AppCompatActivity() {
                 translationY = -dp(12).toFloat()
             }
         topContainer.addView(promotionBannerView)
-
-        activationCard =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                background = surfaceCardBackground()
-                setPadding(dp(16), dp(16), dp(16), dp(16))
-                layoutParams =
-                    LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ).apply {
-                        topMargin = dp(12)
-                        bottomMargin = dp(12)
-                    }
-            }
-        activationTitleView = sectionLabel("")
-        activationHintView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#DFFFF0"))
-                setPadding(0, 0, 0, dp(10))
-            }
-        serialInput =
-            activationInput("").apply {
-                filters = arrayOf(InputFilter.LengthFilter(11))
-            }
-        serialInputErrorView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFB347"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(2), dp(4), 0, 0)
-                visibility = View.GONE
-            }
-        codeInput =
-            activationInput("").apply {
-                filters = arrayOf(InputFilter.LengthFilter(8))
-            }
-        codeInputErrorView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFB347"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(2), dp(4), 0, 0)
-                visibility = View.GONE
-            }
-        activateButton =
-            actionButton("", "#008840").apply {
-                layoutParams =
-                    LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    )
-                setOnClickListener { activateDevice() }
-            }
-        serialInput.doAfterTextChanged {
-            updateActivationInputState()
-        }
-        codeInput.doAfterTextChanged {
-            updateActivationInputState()
-        }
-        authStatusView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFD060"))
-                setPadding(0, dp(10), 0, 0)
-            }
-        activationDetailsView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFF0C9"))
-                setPadding(0, dp(12), 0, 0)
-                visibility = View.GONE
-            }
-        activationCard.addView(activationTitleView)
-        activationCard.addView(activationHintView)
-        activationCard.addView(serialInput)
-        activationCard.addView(serialInputErrorView)
-        activationCard.addView(spacer(dp(8)))
-        activationCard.addView(codeInput)
-        activationCard.addView(codeInputErrorView)
-        activationCard.addView(spacer(dp(12)))
-        activationCard.addView(activateButton)
-        activationCard.addView(authStatusView)
-        activationCard.addView(activationDetailsView)
-        activationCard.visibility = View.GONE
-        topContainer.addView(activationCard)
-        updateActivationInputState()
 
         pageTabsCard =
             surfaceCard().apply {
@@ -2145,10 +2046,6 @@ class MainActivity : AppCompatActivity() {
         if (trainingJob?.isActive == true) {
             return
         }
-        if (!isActivated()) {
-            renderActivationRequired(tr("activation_required"))
-            return
-        }
         if (bluetoothConnectedDevice == null) {
             renderError(bluetoothConnectFirstText())
             return
@@ -2174,7 +2071,6 @@ class MainActivity : AppCompatActivity() {
         remainingView.text = displayRemaining(sessionMode.durationSeconds * 1_000L)
         quietIconView.visibility = View.GONE
         setTrainingBusyUi(true)
-        setActivationVisible(false)
         applyStaticTexts()
         prepareSelectedCloudSoundEffect()
         sensorBallBluetooth.setTelemetryReadsEnabled(true)
@@ -2459,13 +2355,8 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun renderIdle(authMessageKey: String? = null) {
-        if (!isActivated()) {
-            renderActivationRequired()
-            return
-        }
+    private fun renderIdle() {
         setTrainingBusyUi(false)
-        setActivationVisible(authMessageKey != null)
         statusView.text = tr("ready")
         statusView.setTextColor(Color.parseColor("#FFF0C9"))
         countdownView.text = "3"
@@ -2474,45 +2365,15 @@ class MainActivity : AppCompatActivity() {
         quietIconView.visibility = View.GONE
         lastSpokenCountdown = null
         goSpoken = false
-        if (authMessageKey != null) {
-            setAuthStatusMessage("#FFB347", key = authMessageKey)
-        } else {
-            clearAuthStatusMessage()
-        }
         applyStaticTexts()
         if (latestReport == null) {
             renderEmptyReport()
         }
-        if (authMessageKey == "activation_success_ready") {
-            activationCard.removeCallbacks(hideActivationCardRunnable)
-            activationCard.postDelayed(hideActivationCardRunnable, 3_000L)
-        }
-    }
-
-    private fun renderActivationRequired(message: String? = null) {
-        setTrainingBusyUi(false)
-        setActivationBusy(false)
-        setActivationVisible(true)
-        statusView.text = tr("activation_required")
-        statusView.setTextColor(Color.parseColor("#FFB347"))
-        countdownView.text = tr("lock_short")
-        countView.text = "0"
-        remainingView.text = displayRemaining(selectedMode.durationSeconds * 1_000L)
-        quietIconView.visibility = View.GONE
-        setAuthStatusMessage(
-            colorHex = "#FFD060",
-            key = if (message == null) "activation_hint" else null,
-            fallback = message,
-        )
-        lastSpokenCountdown = null
-        goSpoken = false
-        applyStaticTexts()
     }
 
 
     private fun renderError(message: String) {
         setTrainingBusyUi(false)
-        setActivationVisible(!isActivated())
         statusView.text = message
         statusView.setTextColor(Color.parseColor("#FF8A80"))
         countdownView.text = tr("error_short")
@@ -2691,120 +2552,6 @@ class MainActivity : AppCompatActivity() {
         reportView.addView(shareRow)
     }
 
-    private fun activateDevice() {
-        val serial = normalizeDigits(serialInput.text?.toString()).take(11)
-        val code = normalizeDigits(codeInput.text?.toString()).take(8)
-        if (serial.length != 11) {
-            setAuthStatusMessage("#FFB347", key = "serial_invalid")
-            return
-        }
-        if (code.length != 8) {
-            setAuthStatusMessage("#FFB347", key = "code_invalid")
-            return
-        }
-
-        activationJob?.cancel()
-        setActivationBusy(true)
-        setAuthStatusMessage("#FFD060", key = "activation_loading")
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.activate(
-                        serial = serial,
-                        code = code,
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    setActivationBusy(false)
-                    handleActivationResult(serial, result)
-                }
-            }
-    }
-
-    private fun handleActivationResult(
-        serial: String,
-        result: ActivationApiResult,
-    ) {
-        if (result.success && !result.activationToken.isNullOrBlank()) {
-            persistActivationState(result.serial ?: serial, result.activationToken)
-            codeInput.setText("")
-            renderIdle(authMessageKey = "activation_success_ready")
-            refreshCloudData(forceLeaderboard = true)
-            return
-        }
-
-        setAuthStatusFailure(result.reason, result.message)
-    }
-
-    private fun attemptAutoRestoreActivation(force: Boolean = false) {
-        if (isActivated()) {
-            return
-        }
-        if (autoRestoreAttempted && !force) {
-            return
-        }
-        autoRestoreAttempted = true
-        activationJob?.cancel()
-        setActivationBusy(true)
-        setAuthStatusMessage("#FFD060", fallback = activationRestoreLoadingMessage())
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.reactivateByDevice(
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    setActivationBusy(false)
-                    if (result.success && !result.activationToken.isNullOrBlank() && !result.serial.isNullOrBlank()) {
-                        persistActivationState(result.serial, result.activationToken)
-                        clearAuthStatusMessage()
-                        renderIdle()
-                        refreshCloudData(forceLeaderboard = true)
-                    } else if (result.reason == ActivationService.NETWORK_REASON) {
-                        setAuthStatusMessage("#FFD060", fallback = activationRestoreNetworkMessage())
-                    } else {
-                        clearAuthStatusMessage()
-                        renderActivationRequired()
-                    }
-                }
-            }
-    }
-
-    private fun verifyActivationInBackground() {
-        val state = activationState ?: return
-        activationJob?.cancel()
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.check(
-                        serial = state.serial,
-                        activationToken = state.activationToken,
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    if (result.success) {
-                        markActivationCheckedNow()
-                        refreshCloudData(forceLeaderboard = true)
-                        if (trainingJob?.isActive != true) {
-                            clearAuthStatusMessage()
-                            applyStaticTexts()
-                        }
-                    } else if (result.reason != ActivationService.NETWORK_REASON) {
-                        clearActivationState()
-                        setAuthStatusFailure(result.reason, result.message)
-                        renderActivationRequired(currentAuthStatusMessage())
-                        attemptAutoRestoreActivation(force = true)
-                    }
-                }
-            }
-    }
-
     private fun ensureInstallIdentity() {
         installId = prefs.getString(KEY_INSTALL_ID, null).orEmpty()
         if (installId.isBlank()) {
@@ -2856,17 +2603,6 @@ class MainActivity : AppCompatActivity() {
             .apply()
     }
 
-    private fun clearActivationState() {
-        persistActivationState(generateLocalUserSerial(), "local")
-    }
-
-    private fun markActivationCheckedNow() {
-        val state = activationState ?: return
-        val now = System.currentTimeMillis()
-        activationState = state.copy(lastCheckAtEpochMs = now)
-        prefs.edit().putLong(KEY_AUTH_LAST_CHECK_AT, now).apply()
-    }
-
     private fun isActivated(): Boolean = true
 
     private fun generateLocalUserSerial(): String {
@@ -2874,174 +2610,6 @@ class MainActivity : AppCompatActivity() {
         val numeric = digest.joinToString("") { byte -> ((byte.toInt() and 0xFF) % 10).toString() }
         return numeric.take(11).padEnd(11, '0')
     }
-
-    private fun authFailureMessageKey(reason: String?): String? =
-        when (reason) {
-            "serial_not_found" -> "activation_serial_not_found"
-            "invalid_code" -> "activation_invalid_code"
-            "already_bound" -> "activation_already_bound"
-            "not_activated" -> "activation_not_activated"
-            ActivationService.NETWORK_REASON -> "activation_network_error"
-            else -> null
-        }
-
-    private fun setAuthStatusFailure(
-        reason: String?,
-        fallbackMessage: String,
-    ) {
-        val key = authFailureMessageKey(reason)
-        setAuthStatusMessage(
-            colorHex = if (reason == ActivationService.NETWORK_REASON) "#FFD060" else "#FFB347",
-            key = key,
-            fallback = if (key == null) fallbackMessage.ifBlank { tr("activation_failed") } else null,
-        )
-    }
-
-    private fun setAuthStatusMessage(
-        colorHex: String,
-        key: String? = null,
-        fallback: String? = null,
-    ) {
-        authStatusMessageKey = key
-        authStatusFallbackMessage = fallback
-        authStatusColor = Color.parseColor(colorHex)
-        applyAuthStatusView()
-    }
-
-    private fun currentAuthStatusMessage(): String =
-        authStatusMessageKey?.let(::tr) ?: authStatusFallbackMessage.orEmpty()
-
-    private fun clearAuthStatusMessage() {
-        authStatusMessageKey = null
-        authStatusFallbackMessage = null
-        applyAuthStatusView()
-    }
-
-    private fun applyAuthStatusView() {
-        val message = currentAuthStatusMessage()
-        authStatusView.text = message
-        if (message.isBlank()) {
-            authStatusView.visibility = View.GONE
-            authStatusView.background = null
-            return
-        }
-        authStatusView.visibility = View.VISIBLE
-        authStatusView.setTextColor(authStatusColor)
-        authStatusView.background = chipBackground(authStatusColor)
-        authStatusView.setPadding(dp(12), dp(8), dp(12), dp(8))
-    }
-
-    private fun refreshActivationCardState() {
-        val activated = isActivated()
-        activationCard.background = if (activated) heroBackground("#0E4057") else surfaceCardBackground()
-        activationTitleView.text =
-            if (activated) tr("activation_ready_title") else tr("activation_title")
-        activationHintView.text =
-            if (activated) tr("activation_ready_subtitle") else tr("activation_subtitle")
-        serialInput.hint = tr("serial_hint")
-        codeInput.hint = tr("code_hint")
-        activateButton.text = tr("activate")
-
-        serialInput.visibility = if (activated) View.GONE else View.VISIBLE
-        codeInput.visibility = if (activated) View.GONE else View.VISIBLE
-        if (activated) {
-            serialInputErrorView.visibility = View.GONE
-            codeInputErrorView.visibility = View.GONE
-        }
-        activateButton.visibility = if (activated) View.GONE else View.VISIBLE
-        activationDetailsView.visibility = if (activated) View.VISIBLE else View.GONE
-
-        if (activated) {
-            activationDetailsView.text = buildActivationDetailsText()
-            applyAuthStatusView()
-        } else {
-            activationDetailsView.text = ""
-            if (authStatusMessageKey == null && authStatusFallbackMessage.isNullOrBlank()) {
-                setAuthStatusMessage("#FFD060", key = "activation_hint")
-            } else {
-                applyAuthStatusView()
-            }
-        }
-    }
-
-    private fun buildActivationDetailsText(): String {
-        val state = activationState ?: return ""
-        val serialText = if (state.serial.length <= 4) state.serial else "*******" + state.serial.takeLast(4)
-        val checkedAt = formatActivationCheckTime(state.lastCheckAtEpochMs)
-        return buildString {
-            append(localUserLabel())
-            append(": ")
-            append(serialText)
-            append('\n')
-            append(readyStatusLabel())
-            append(": ")
-            append(readyStatusValue())
-            append('\n')
-            append(lastSeenLabel())
-            append(": ")
-            append(checkedAt)
-        }
-    }
-
-    private fun maskSerial(serial: String): String =
-        if (serial.length <= 4) serial else "•••••••" + serial.takeLast(4)
-
-    private fun localUserLabel(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "用户ID"
-            AppLanguage.English -> "User ID"
-            AppLanguage.French -> "ID utilisateur"
-            AppLanguage.Thai -> "รหัสผู้ใช้"
-        }
-
-    private fun readyStatusLabel(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "状态"
-            AppLanguage.English -> "Status"
-            AppLanguage.French -> "Statut"
-            AppLanguage.Thai -> "สถานะ"
-        }
-
-    private fun readyStatusValue(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "可用"
-            AppLanguage.English -> "Ready"
-            AppLanguage.French -> "Prêt"
-            AppLanguage.Thai -> "พร้อมใช้งาน"
-        }
-
-    private fun lastSeenLabel(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "最近同步"
-            AppLanguage.English -> "Last sync"
-            AppLanguage.French -> "Derniere sync"
-            AppLanguage.Thai -> "ซิงก์ล่าสุด"
-        }
-
-    private fun formatActivationCheckTime(epochMs: Long): String {
-        if (epochMs <= 0L) {
-            return tr("activation_just_now")
-        }
-        return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epochMs))
-    }
-
-    private fun normalizeDigits(value: String?): String = value.orEmpty().filter { it.isDigit() }
-
-    private fun activationRestoreLoadingMessage(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "正在准备本机用户资料..."
-            AppLanguage.English -> "Preparing this device profile..."
-            AppLanguage.French -> "Preparation du profil de cet appareil..."
-            AppLanguage.Thai -> "กำลังเตรียมโปรไฟล์ของอุปกรณ์นี้..."
-        }
-
-    private fun activationRestoreNetworkMessage(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "暂时无法同步本机用户资料，请联网后重试。"
-            AppLanguage.English -> "Unable to sync this device profile right now. Please connect to the internet and try again."
-            AppLanguage.French -> "Impossible de synchroniser ce profil pour le moment. Connectez-vous a Internet puis reessayez."
-            AppLanguage.Thai -> "ยังไม่สามารถซิงก์โปรไฟล์อุปกรณ์นี้ได้ โปรดเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง"
-        }
 
     private fun computeDeviceHash(): String {
         val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
@@ -4321,7 +3889,6 @@ class MainActivity : AppCompatActivity() {
         val profile = cloudProfile ?: return ""
         val parts =
             mutableListOf(
-                "${localUserLabel()}: ${profile.serialMasked}",
                 "${tr("profile_language")}: ${languageDisplayName(AppLanguage.fromStorage(profile.languageCode))}",
             )
         val countryCode = normalizedCountryCode(profile.countryCode)
@@ -4819,10 +4386,6 @@ class MainActivity : AppCompatActivity() {
     private fun buildProfileMetaText(): String {
         val profile = cloudProfile ?: return ""
         return buildString {
-            append(localUserLabel())
-            append(": ")
-            append(profile.serialMasked)
-            append("   ·   ")
             append(tr("profile_language"))
             append(": ")
             append(languageDisplayName(AppLanguage.fromStorage(profile.languageCode)))
@@ -4899,7 +4462,7 @@ class MainActivity : AppCompatActivity() {
         }
         val lines =
             result.top.joinToString("\n") { entry ->
-                "${rankLabel(entry.rank)} ${entry.nickname}\n${leaderboardPrimaryValueText(entry)}\n${entry.serialMasked}"
+                "${rankLabel(entry.rank)} ${entry.nickname}\n${leaderboardPrimaryValueText(entry)}"
             }
         val meLine =
             result.me?.let { entry ->
@@ -5004,7 +4567,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun formatHistoryTime(value: String?): String {
         if (value.isNullOrBlank()) {
-            return tr("activation_just_now")
+            return localText("刚刚", "Just now", "À l'instant", "เมื่อสักครู่")
         }
         val parsed = parseCloudDate(value)
         if (parsed == null) {
@@ -5151,68 +4714,17 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun setTrainingBusyUi(isBusy: Boolean) {
-        val activated = isActivated()
-        startButton.isEnabled = !isBusy && activated
+        startButton.isEnabled = !isBusy
         startButton.alpha = if (startButton.isEnabled) 1.0f else 0.5f
         stopButton.isEnabled = isBusy
         stopButton.alpha = if (isBusy) 1.0f else 0.5f
         settingsButton.isEnabled = !isBusy
         settingsButton.alpha = if (isBusy) 0.5f else 1.0f
-        activateButton.isEnabled = !isBusy && !activated && activationInputsValid
-        activateButton.alpha = if (activateButton.isEnabled) 1.0f else 0.6f
-        serialInput.isEnabled = !isBusy && !activated
-        codeInput.isEnabled = !isBusy && !activated
         for (index in 0 until modeGroup.childCount) {
             modeGroup.getChildAt(index).isEnabled = !isBusy
             modeGroup.getChildAt(index).alpha = if (isBusy) 0.6f else 1.0f
         }
         refreshModeButtonStyles()
-    }
-
-    private fun setActivationVisible(visible: Boolean) {
-        if (!visible && ::activationCard.isInitialized) {
-            activationCard.removeCallbacks(hideActivationCardRunnable)
-        }
-        activationCard.visibility = if (visible) View.VISIBLE else View.GONE
-    }
-
-    private fun setActivationBusy(isBusy: Boolean) {
-        val allowInput = !isBusy && !isActivated()
-        activateButton.isEnabled = allowInput && activationInputsValid
-        activateButton.alpha = if (activateButton.isEnabled) 1.0f else 0.6f
-        serialInput.isEnabled = allowInput
-        codeInput.isEnabled = allowInput
-    }
-
-    private fun updateActivationInputState() {
-        val serialDigits = normalizeDigits(serialInput.text?.toString())
-        val codeDigits = normalizeDigits(codeInput.text?.toString())
-        val serialRaw = serialInput.text?.toString().orEmpty()
-        val codeRaw = codeInput.text?.toString().orEmpty()
-        val serialOk = serialDigits.length == 11
-        val codeOk = codeDigits.length == 8
-
-        if (serialRaw.isEmpty() || serialOk) {
-            serialInputErrorView.text = ""
-            serialInputErrorView.visibility = View.GONE
-        } else {
-            serialInputErrorView.text = tr("serial_invalid")
-            serialInputErrorView.visibility = View.VISIBLE
-        }
-        if (codeRaw.isEmpty() || codeOk) {
-            codeInputErrorView.text = ""
-            codeInputErrorView.visibility = View.GONE
-        } else {
-            codeInputErrorView.text = tr("code_invalid")
-            codeInputErrorView.visibility = View.VISIBLE
-        }
-
-        activationInputsValid = serialOk && codeOk
-        val activated = isActivated()
-        val busy = activationJob?.isActive == true || trainingJob?.isActive == true
-        val enabled = !activated && !busy && activationInputsValid
-        activateButton.isEnabled = enabled
-        activateButton.alpha = if (enabled) 1.0f else 0.6f
     }
 
     private fun showFormalSettingsDialog() {
@@ -5406,6 +4918,18 @@ class MainActivity : AppCompatActivity() {
                     accentColor = "#80FFB0",
                 ),
             )
+            addView(
+                bodyText(bluetoothWakeHintText()).apply {
+                    setTextColor(Color.parseColor("#FFD060"))
+                    background = roundedBackground("#241A08", "#7A5B18", 16)
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    layoutParams =
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ).apply { topMargin = dp(10) }
+                },
+            )
             bluetoothStatusView =
                 bodyText(bluetoothStatusMessage).apply {
                     setTextColor(Color.parseColor("#B9F8D0"))
@@ -5429,6 +4953,7 @@ class MainActivity : AppCompatActivity() {
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                             setOnClickListener {
                                 runWithBluetoothPermissions {
+                                    pendingLaunchAutoConnectDevice = null
                                     sensorBallBluetooth.startScan()
                                 }
                             }
@@ -6155,12 +5680,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val device = loadLastBluetoothDevice() ?: return
-        selectedBluetoothDevice = device
+        pendingLaunchAutoConnectDevice = device
         bluetoothStatusMessage = bluetoothAutoConnectingText(device.name)
         updateBluetoothSettingsViews()
         runWithBluetoothPermissions {
             if (bluetoothConnectedDevice == null) {
-                sensorBallBluetooth.connect(device)
+                sensorBallBluetooth.startScan()
+                mainHandler.postDelayed({
+                    if (pendingLaunchAutoConnectDevice != null && bluetoothConnectedDevice == null) {
+                        pendingLaunchAutoConnectDevice = null
+                        bluetoothStatusMessage = bluetoothAutoConnectNotFoundText()
+                        updateBluetoothSettingsViews()
+                    }
+                }, BLUETOOTH_AUTO_CONNECT_SCAN_TIMEOUT_MS)
             }
         }
     }
@@ -6220,6 +5752,14 @@ class MainActivity : AppCompatActivity() {
             "Scan for a SENBALL# device first. Training is available after connection.",
             "Scannez d'abord un appareil SENBALL#. L'entraînement sera disponible après connexion.",
             "โปรดสแกนอุปกรณ์ SENBALL# ก่อน เมื่อเชื่อมต่อแล้วจึงเริ่มฝึกได้",
+        )
+
+    private fun bluetoothWakeHintText(): String =
+        localText(
+            "设备静止 1 分钟后会自动进入低功耗状态。连接蓝牙前请先击打一下设备以唤醒蓝牙，避免搜索不到设备。",
+            "After 1 minute without movement, the device enters low-power mode. Hit it once before connecting to wake Bluetooth and make it discoverable.",
+            "Après 1 minute sans mouvement, l'appareil passe en mode basse consommation. Frappez-le une fois avant la connexion pour réveiller le Bluetooth et le rendre détectable.",
+            "เมื่ออุปกรณ์อยู่นิ่ง 1 นาที ระบบจะเข้าสู่โหมดประหยัดพลังงาน โปรดตีอุปกรณ์หนึ่งครั้งก่อนเชื่อมต่อเพื่อปลุก Bluetooth และให้อุปกรณ์ค้นหาเจอ",
         )
 
     private fun bluetoothScanLabel(): String =
@@ -6290,6 +5830,14 @@ class MainActivity : AppCompatActivity() {
     private fun bluetoothAutoConnectingText(name: String): String =
         localText("正在自动连接上次设备 $name...", "Auto-connecting last device $name...", "Connexion automatique au dernier appareil $name...", "กำลังเชื่อมต่ออุปกรณ์ล่าสุด $name อัตโนมัติ...")
 
+    private fun bluetoothAutoConnectNotFoundText(): String =
+        localText(
+            "未找到上次连接的设备，请击打设备唤醒蓝牙后重新扫描。",
+            "The last device was not found. Hit it once to wake Bluetooth, then scan again.",
+            "Le dernier appareil est introuvable. Frappez-le une fois pour réveiller le Bluetooth, puis relancez la recherche.",
+            "ไม่พบอุปกรณ์ล่าสุด โปรดตีอุปกรณ์หนึ่งครั้งเพื่อปลุก Bluetooth แล้วสแกนอีกครั้ง",
+        )
+
     private fun settingsDialogTitle(): String =
         localText("蓝牙连接及语言选择", "Bluetooth Connection and Language", "Connexion Bluetooth et langue", "การเชื่อมต่อบลูทูธและภาษา")
 
@@ -6305,12 +5853,7 @@ class MainActivity : AppCompatActivity() {
         )
 
     private fun bluetoothFirstUseGuideHint(): String =
-        localText(
-            "连接成功后，顶部蓝牙图标会变为蓝色，并显示电量。",
-            "After connection, the top Bluetooth icon turns blue and shows battery level.",
-            "Après connexion, l'icône Bluetooth en haut devient bleue et affiche la batterie.",
-            "หลังเชื่อมต่อ ไอคอนบลูทูธด้านบนจะเป็นสีน้ำเงินและแสดงแบตเตอรี่",
-        )
+        bluetoothWakeHintText()
 
     private fun bluetoothFirstUseOpenSettingsLabel(): String =
         localText("去设置", "Open Settings", "Ouvrir les paramètres", "ไปที่ตั้งค่า")
@@ -6398,17 +5941,13 @@ class MainActivity : AppCompatActivity() {
         updateTtsLanguage()
         refreshBluetoothBatteryTextForLanguage()
         clearLanguageSensitiveFallbackMessages()
-        if (isActivated()) {
-            renderIdle()
-            latestReport?.let(::renderReport) ?: renderEmptyReport()
-            renderTrainingPlayStatus()
-            refreshModeButtonStyles()
-            refreshCloudViews()
-            if (refreshCloud) {
-                refreshCloudData(forceLeaderboard = false)
-            }
-        } else {
-            renderActivationRequired()
+        renderIdle()
+        latestReport?.let(::renderReport) ?: renderEmptyReport()
+        renderTrainingPlayStatus()
+        refreshModeButtonStyles()
+        refreshCloudViews()
+        if (refreshCloud) {
+            refreshCloudData(forceLeaderboard = false)
         }
         updateBluetoothSettingsViews()
     }
@@ -6416,9 +5955,6 @@ class MainActivity : AppCompatActivity() {
     private fun clearLanguageSensitiveFallbackMessages() {
         if (cloudStatusMessageKey == null) {
             cloudStatusFallbackMessage = null
-        }
-        if (authStatusMessageKey == null) {
-            authStatusFallbackMessage = null
         }
         lastCoachMessage = null
     }
@@ -6518,10 +6054,6 @@ class MainActivity : AppCompatActivity() {
         shareLeaderboardButton.text = shareLeaderboardLabel()
         settingsButton.contentDescription = tr("settings")
         quietIconView.contentDescription = tr("keep_quiet")
-        refreshActivationCardState()
-        if (::serialInput.isInitialized && ::codeInput.isInitialized) {
-            updateActivationInputState()
-        }
         refreshHomePageVisibility()
         if (latestReport == null) {
             renderEmptyReport()
@@ -9066,13 +8598,8 @@ class MainActivity : AppCompatActivity() {
                 setPadding(0, dp(4), 0, 0)
             },
         )
-        val serialBadge =
-            badgeText(entry.serialMasked, textColor = "#FFF0C9", fillColor = "#132635").apply {
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            }
         row.addView(rankView)
         row.addView(content)
-        row.addView(serialBadge)
         card.addView(row)
         return card
     }
@@ -9468,12 +8995,6 @@ class MainActivity : AppCompatActivity() {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
             },
         )
-        sideColumn.addView(
-            badgeText(entry.serialMasked, textColor = "#FFF0C9", fillColor = "#132635").apply {
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                (layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(6)
-            },
-        )
         row.addView(accentBar)
         row.addView(rankView)
         row.addView(content)
@@ -9545,21 +9066,6 @@ class MainActivity : AppCompatActivity() {
             setTypeface(Typeface.DEFAULT_BOLD)
             setTextColor(Color.parseColor("#FFF8E8"))
             setPadding(0, 0, 0, dp(6))
-        }
-
-    private fun activationInput(hint: String): EditText =
-        EditText(this).apply {
-            this.hint = hint
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.parseColor("#4A8A5A"))
-            background = roundedBackground("#061410", "#1A3A24", 12)
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            layoutParams =
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
         }
 
     private fun bodyText(text: String): TextView =
@@ -9703,6 +9209,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_LAST_BLUETOOTH_CLASSIC_ADDRESS = "last_bluetooth_classic_address"
         const val KEY_BLUETOOTH_FIRST_USE_GUIDE_SHOWN = "bluetooth_first_use_guide_shown"
         const val DEFAULT_LIGHT_BRIGHTNESS = 20
+        const val BLUETOOTH_AUTO_CONNECT_SCAN_TIMEOUT_MS = 12_000L
         const val MAX_LIGHT_BRIGHTNESS = 100
         const val LIGHT_COMMAND_REFRESH_PAUSE_MS = 1_200L
         const val DEVELOPER_COMPANY_NAME_ZH = "绍兴维脉科技有限公司"

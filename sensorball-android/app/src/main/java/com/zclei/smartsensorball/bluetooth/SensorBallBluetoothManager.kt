@@ -881,7 +881,7 @@ class SensorBallBluetoothManager(
 
     private fun isBoxingDeviceName(name: String): Boolean {
         val normalized = name.trim()
-        return normalized.startsWith(DEVICE_PREFIX, ignoreCase = true) &&
+        return normalized.startsWith(DEVICE_PREFIX) &&
             normalized.lastOrNull()?.isAsciiDigit() == true
     }
 
@@ -985,7 +985,7 @@ class SensorBallBluetoothManager(
         const val INITIAL_RECONNECT_DELAY_MS = 800L
         const val MAX_RECONNECT_DELAY_MS = 8_000L
         const val MAX_RECONNECT_ATTEMPTS = 12
-        val DEVICE_NAME_REGEX = Regex("SENBALL#[A-Za-z0-9_-]*[0-9]", RegexOption.IGNORE_CASE)
+        val DEVICE_NAME_REGEX = Regex("SENBALL#[A-Za-z0-9_-]*[0-9](?![A-Za-z0-9_-])")
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
         val CLIENT_CONFIG_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
