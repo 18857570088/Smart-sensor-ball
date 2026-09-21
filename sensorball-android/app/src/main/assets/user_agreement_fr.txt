@@ -7,6 +7,7 @@ Le présent accord s'applique à l'application Smart sensor ball et aux services
 
 2. Services
 L'application propose la connexion Bluetooth, le comptage des frappes, les modes d'entraînement, les historiques, les succès, les classements, le profil et les réglages de langue. Certaines fonctions dépendent du matériel, du Bluetooth du téléphone, du réseau et des services cloud.
+Aucun numéro de série ni code d'activation n'est requis pour utiliser le produit, et l'application ne comporte pas de procédure d'activation du produit.
 
 3. Utilisation sûre
 Utilisez le produit dans un espace sportif sûr et adapté. Avant l'entraînement, vérifiez le ballon, la corde, le port et l'environnement. Adaptez l'intensité à votre condition physique et arrêtez immédiatement en cas d'inconfort.

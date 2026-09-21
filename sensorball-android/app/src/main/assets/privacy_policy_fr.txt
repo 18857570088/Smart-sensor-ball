@@ -7,6 +7,7 @@ Smart sensor ball est l'application compagnon d'un produit de boxe intelligent f
 
 2. Données traitées
 Données Bluetooth : nom de l'appareil, adresse, état de connexion, batterie et nombre de frappes des appareils SENBALL#.
+Le produit ne demande pas de numéro de série ni de code d'activation, et l'accès au matériel n'est pas validé par un code d'activation.
 Données d'entraînement : mode, durée, nombre de frappes, fréquence moyenne, meilleure série, total, succès, rangs et classements.
 Données de profil : pseudo, avatar, langue, région et informations d'affichage.
 Données techniques : version de l'application, modèle de l'appareil, version du système, état des requêtes, erreurs et journaux nécessaires.
