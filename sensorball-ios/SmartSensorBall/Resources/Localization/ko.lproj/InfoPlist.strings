@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Smart sensor ball";
+NSBluetoothAlwaysUsageDescription = "앱은 Bluetooth를 사용하여 Smart sensor ball에 연결하고 배터리 및 펀치 데이터를 수신합니다.";
+NSBluetoothPeripheralUsageDescription = "앱은 Bluetooth를 사용하여 Smart sensor ball에 연결하고 배터리 및 펀치 데이터를 수신합니다.";

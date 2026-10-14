@@ -1,0 +1,10 @@
+Smart sensor ball Acuerdo de usuario
+Versión: V1.0
+Fecha de entrada en vigor: 2026-05-15
+
+La app proporciona conexión Bluetooth, conteo de golpes, entrenamiento, registros, logros, clasificaciones, perfil e idioma. Algunas funciones dependen del hardware, Bluetooth, red y servicios en la nube.
+
+Este producto no requiere número de serie ni código de activación. Usa el producto en un entorno seguro y detén el entrenamiento si te sientes mal.
+
+Operador: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

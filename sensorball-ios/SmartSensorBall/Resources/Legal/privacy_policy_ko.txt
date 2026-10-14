@@ -1,0 +1,10 @@
+Smart sensor ball 개인정보 처리방침
+버전: V1.0
+시행일: 2026-05-15
+
+Smart sensor ball은 Bluetooth, 펀치 카운트, 훈련, 업적, 순위표 및 프로필 기능에 필요한 데이터를 처리합니다. 이 제품은 제품 일련번호나 활성화 코드가 필요하지 않으며, 앱은 이를 수집하지 않습니다.
+
+주요 권한: SENBALL# 기기 연결을 위한 Bluetooth, 동기화를 위한 네트워크, 아바타 선택 또는 이미지 공유 시에만 이미지 접근.
+
+운영자: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

@@ -4,11 +4,13 @@ Effective Date: 2026-05-15
 
 1. Introduction
 Smart sensor ball is a smart boxing product companion app provided by Shaoxing Weimai Technology Co., Ltd. This policy explains how we collect, use, store, and protect information when you use Bluetooth connection, boxing count, training records, achievements, leaderboards, and profile features.
+This product does not require a product serial number or activation code. The app does not provide a product activation flow and does not collect product serial numbers or activation codes.
 
 2. Information We Process
 Bluetooth device data: device name, device address, connection status, battery level, and boxing count from SENBALL# devices. This is used for scanning, connection, automatic reconnection, battery display, and training count.
 Training data: mode, duration, boxing count, average frequency, best burst, accumulated hits, sessions, streaks, achievements, ranks, and leaderboard results.
 Profile data: nickname, avatar, language, region, and display information used in the app and leaderboards.
+The app automatically creates a local profile identifier for training ownership, cloud sync, and leaderboards. This identifier is not a product serial number or activation credential.
 Technical data: app version, device model, system version, network request status, errors, and necessary logs for troubleshooting and service security.
 
 3. Permissions
@@ -21,7 +23,7 @@ Image access is used only when you choose an avatar or save/share images.
 We do not sell your personal information. Necessary data may be processed within our service systems to provide sync, achievements, leaderboards, and operations. Leaderboard nickname, avatar, rank, and score are displayed as part of the product feature.
 
 5. Storage and Security
-Some settings, the last connected Bluetooth device, avatar cache, and local status are stored on your device. Training records, achievements, leaderboards, and profile summaries may be stored on cloud servers. We use reasonable security measures, but no Internet or Bluetooth environment is absolutely secure.
+Some settings, the last connected Bluetooth device, avatar cache, and local status are stored on your device. Training records, achievements, leaderboards, and profile summaries may be stored on cloud servers. We use reasonable security measures, but no Internet or Bluetooth environment is absolutely secure. Please keep your phone, personal profile, and smart device safe.
 
 6. Your Rights
 You may view and edit certain profile information in the app. You may contact us to request consultation, correction, or deletion where permitted by law and product safety requirements.

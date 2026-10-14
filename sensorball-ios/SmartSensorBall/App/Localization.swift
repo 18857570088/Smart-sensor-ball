@@ -4,6 +4,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case chinese = "zh"
     case english = "en"
     case french = "fr"
+    case spanish = "es"
+    case german = "de"
+    case korean = "ko"
     case thai = "th"
 
     var id: String { rawValue }
@@ -18,6 +21,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .chinese: return "简体中文"
         case .english: return "English"
         case .french: return "Français"
+        case .spanish: return "Español"
+        case .german: return "Deutsch"
+        case .korean: return "한국어"
         case .thai: return "ไทย"
         }
     }
@@ -27,6 +33,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .chinese: return "zh"
         case .english: return "en"
         case .french: return "fr"
+        case .spanish: return "es"
+        case .german: return "de"
+        case .korean: return "ko"
         case .thai: return "th"
         }
     }
@@ -137,6 +146,102 @@ enum L10n {
             "running": "En entraînement",
             "complete": "Entraînement terminé",
             "stopped": "Entraînement arrêté",
+        ],
+        .spanish: [
+            "first_use_title": "Conectar dispositivo Bluetooth",
+            "first_use_message": "Antes de la primera sesión, abre Ajustes para buscar y conectar tu Smart sensor ball.",
+            "open_settings": "Abrir ajustes",
+            "later": "Más tarde",
+            "settings": "Ajustes",
+            "settings_title": "Conexión Bluetooth e idioma",
+            "bluetooth_connection": "Conexión Bluetooth",
+            "bluetooth_hint": "Busca primero un dispositivo SENBALL#. El entrenamiento estará disponible tras conectar.",
+            "scan": "Escanear",
+            "connect": "Conectar",
+            "disconnect": "Desconectar",
+            "no_devices": "No se encontraron dispositivos SENBALL#",
+            "language": "Idioma de la app",
+            "done": "Hecho",
+            "training_center": "Centro de entrenamiento",
+            "start": "Iniciar",
+            "end": "Terminar",
+            "punch_count": "Conteo de golpes",
+            "bluetooth": "Bluetooth",
+            "battery": "Batería",
+            "api_status": "API en la nube",
+            "privacy_policy": "Política de privacidad",
+            "user_agreement": "Acuerdo de usuario",
+            "document_unavailable": "Este documento no está disponible actualmente.",
+            "ready": "Listo para entrenar",
+            "connect_first": "Conecta primero el dispositivo Bluetooth",
+            "countdown": "Comenzando pronto",
+            "running": "Entrenando",
+            "complete": "Entrenamiento completado",
+            "stopped": "Entrenamiento detenido",
+        ],
+        .german: [
+            "first_use_title": "Bluetooth-Gerät verbinden",
+            "first_use_message": "Öffne vor der ersten Einheit die Einstellungen, um dein Smart sensor ball Gerät zu suchen und zu verbinden.",
+            "open_settings": "Einstellungen öffnen",
+            "later": "Später",
+            "settings": "Einstellungen",
+            "settings_title": "Bluetooth-Verbindung und Sprache",
+            "bluetooth_connection": "Bluetooth-Verbindung",
+            "bluetooth_hint": "Suche zuerst ein SENBALL# Gerät. Training ist nach der Verbindung verfügbar.",
+            "scan": "Suchen",
+            "connect": "Verbinden",
+            "disconnect": "Trennen",
+            "no_devices": "Keine SENBALL# Geräte gefunden",
+            "language": "App-Sprache",
+            "done": "Fertig",
+            "training_center": "Trainingscenter",
+            "start": "Start",
+            "end": "Beenden",
+            "punch_count": "Schlagzahl",
+            "bluetooth": "Bluetooth",
+            "battery": "Batterie",
+            "api_status": "Cloud-API",
+            "privacy_policy": "Datenschutzrichtlinie",
+            "user_agreement": "Nutzungsvereinbarung",
+            "document_unavailable": "Dieses Dokument ist derzeit nicht verfügbar.",
+            "ready": "Bereit zum Training",
+            "connect_first": "Verbinde zuerst das Bluetooth-Gerät",
+            "countdown": "Startet bald",
+            "running": "Training läuft",
+            "complete": "Training abgeschlossen",
+            "stopped": "Training gestoppt",
+        ],
+        .korean: [
+            "first_use_title": "Bluetooth 기기 연결",
+            "first_use_message": "첫 훈련 전에 설정에서 Smart sensor ball 기기를 검색하고 연결하세요.",
+            "open_settings": "설정 열기",
+            "later": "나중에",
+            "settings": "설정",
+            "settings_title": "Bluetooth 연결 및 언어",
+            "bluetooth_connection": "Bluetooth 연결",
+            "bluetooth_hint": "먼저 SENBALL# 기기를 검색하세요. 연결 후 훈련할 수 있습니다.",
+            "scan": "검색",
+            "connect": "연결",
+            "disconnect": "연결 해제",
+            "no_devices": "SENBALL# 기기를 찾을 수 없음",
+            "language": "앱 언어",
+            "done": "완료",
+            "training_center": "훈련 센터",
+            "start": "시작",
+            "end": "종료",
+            "punch_count": "펀치 카운트",
+            "bluetooth": "Bluetooth",
+            "battery": "배터리",
+            "api_status": "클라우드 API",
+            "privacy_policy": "개인정보 처리방침",
+            "user_agreement": "사용자 계약",
+            "document_unavailable": "현재 문서를 사용할 수 없습니다.",
+            "ready": "훈련 준비 완료",
+            "connect_first": "먼저 Bluetooth 기기를 연결하세요",
+            "countdown": "곧 시작",
+            "running": "훈련 중",
+            "complete": "훈련 완료",
+            "stopped": "훈련 중지",
         ],
         .thai: [
             "first_use_title": "เชื่อมต่ออุปกรณ์ Bluetooth",

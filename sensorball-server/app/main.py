@@ -32,7 +32,7 @@ from .security import make_activation_token, normalize_code, normalize_serial, v
 
 app = FastAPI(title="Smart sensor ball Activation Service", version="1.2.0")
 
-SUPPORTED_LANGUAGES = {"zh", "en", "fr", "th"}
+SUPPORTED_LANGUAGES = {"zh", "en", "fr", "es", "de", "ko", "th"}
 SUPPORTED_WINDOWS = {"all", "day", "week", "month"}
 SUPPORTED_MODE_SECONDS = {30, 60}
 SUPPORTED_LEADERBOARD_KEYS = {"best_30_hits", "best_60_hits", "total_hits", "longest_streak"}

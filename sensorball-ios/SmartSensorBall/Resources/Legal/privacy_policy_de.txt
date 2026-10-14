@@ -1,0 +1,10 @@
+Smart sensor ball Datenschutzrichtlinie
+Version: V1.0
+Gültig ab: 2026-05-15
+
+Smart sensor ball verarbeitet Daten, die für Bluetooth, Schlagzählung, Training, Erfolge, Ranglisten und Profilfunktionen erforderlich sind. Das Produkt benötigt keine Seriennummer und keinen Aktivierungscode. Die App sammelt keine Seriennummern oder Aktivierungscodes.
+
+Wichtige Berechtigungen: Bluetooth zum Verbinden von SENBALL# Geräten, Netzwerk für Synchronisierung und Bildzugriff nur bei Avatar-Auswahl oder Bildfreigabe.
+
+Betreiber: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

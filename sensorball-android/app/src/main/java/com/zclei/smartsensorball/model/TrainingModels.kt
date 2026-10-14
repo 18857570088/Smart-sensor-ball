@@ -11,6 +11,9 @@ enum class AppLanguage(val storageValue: String) {
     Chinese(storageValue = "zh"),
     English(storageValue = "en"),
     French(storageValue = "fr"),
+    Spanish(storageValue = "es"),
+    German(storageValue = "de"),
+    Korean(storageValue = "ko"),
     Thai(storageValue = "th");
 
     companion object {

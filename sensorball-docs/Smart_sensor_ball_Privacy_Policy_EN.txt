@@ -8,6 +8,7 @@ Effective Date: June 1, 2026
 Welcome to Smart sensor ball. This app is operated by Shaoxing Weimai Technology Co., Ltd. and is designed to work with smart boxing reaction ball devices for Bluetooth connection, punch counting, training records, training results, achievements, leaderboards, profile features, and cloud sound effects.
 
 We care about the security of your personal information and exercise data. This Privacy Policy explains how we collect, use, store, protect, and manage information when providing Smart sensor ball services.
+This product does not require a product serial number or activation code. The app does not provide a product activation flow and does not collect product serial numbers or activation codes.
 
 2. Information We Collect and Use
 

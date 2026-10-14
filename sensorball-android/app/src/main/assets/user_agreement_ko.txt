@@ -1,0 +1,10 @@
+Smart sensor ball 사용자 계약
+버전: V1.0
+시행일: 2026-05-15
+
+앱은 Bluetooth 연결, 펀치 카운트, 훈련, 기록, 업적, 순위표, 프로필 및 언어 설정을 제공합니다. 일부 기능은 하드웨어, Bluetooth, 네트워크 및 클라우드 서비스에 따라 달라질 수 있습니다.
+
+이 제품은 제품 일련번호나 활성화 코드가 필요하지 않습니다. 안전한 환경에서 사용하고 몸이 불편하면 즉시 중단하세요.
+
+운영자: Shaoxing Weimai Technology Co., Ltd.
+Email: zclei@vip.sina.com

@@ -28,7 +28,6 @@ import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.InputFilter
-import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -64,10 +63,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import com.zclei.smartsensorball.auth.ActivationApiResult
-import com.zclei.smartsensorball.auth.ActivationService
 import com.zclei.smartsensorball.auth.ActivationState
 import com.zclei.smartsensorball.cloud.CloudBootstrapResult
 import com.zclei.smartsensorball.cloud.CloudAchievementItem
@@ -177,7 +173,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedLanguage: AppLanguage = defaultLanguage()
     private var selectedHomePage: HomePage = HomePage.TrainingCenter
     private var trainingJob: Job? = null
-    private var activationJob: Job? = null
     private var bluetoothBatteryRefreshJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bluetoothCountLock = Any()
@@ -218,14 +213,12 @@ class MainActivity : AppCompatActivity() {
     private var cloudStatusFallbackMessage: String? = null
     private var cloudStatusColor: Int = Color.parseColor("#FFD060")
     private var pendingAvatarSelection: ((Uri?) -> Unit)? = null
-    private var autoRestoreAttempted = false
     private var splashDismissed = false
     private var celebrationShowing = false
     private var dismissingCelebrationForTraining = false
     private var activeCelebrationDialog: AlertDialog? = null
     private val celebrationQueue: ArrayDeque<() -> Unit> = ArrayDeque()
 
-    private val activationService = ActivationService()
     private val cloudSyncService = CloudSyncService()
     private var cloudSoundEffects: List<CloudSoundEffect> = emptyList()
     private var selectedCloudSoundEffectId: String = ""
@@ -326,12 +319,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activationCard: LinearLayout
     private lateinit var activationTitleView: TextView
     private lateinit var activationHintView: TextView
-    private lateinit var serialInput: EditText
-    private lateinit var codeInput: EditText
-    private lateinit var serialInputErrorView: TextView
-    private lateinit var codeInputErrorView: TextView
-    private var activationInputsValid: Boolean = false
-    private lateinit var activateButton: Button
     private lateinit var authStatusView: TextView
     private lateinit var activationDetailsView: TextView
     private lateinit var pageTabsCard: LinearLayout
@@ -541,7 +528,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         trainingJob?.cancel()
-        activationJob?.cancel()
         cloudJob?.cancel()
         stopBluetoothBatteryRefreshLoop()
         clearPendingTrainingCountWork()
@@ -721,43 +707,6 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(Color.parseColor("#DFFFF0"))
                 setPadding(0, 0, 0, dp(10))
             }
-        serialInput =
-            activationInput("").apply {
-                filters = arrayOf(InputFilter.LengthFilter(11))
-            }
-        serialInputErrorView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFB347"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(2), dp(4), 0, 0)
-                visibility = View.GONE
-            }
-        codeInput =
-            activationInput("").apply {
-                filters = arrayOf(InputFilter.LengthFilter(8))
-            }
-        codeInputErrorView =
-            bodyText("").apply {
-                setTextColor(Color.parseColor("#FFB347"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(2), dp(4), 0, 0)
-                visibility = View.GONE
-            }
-        activateButton =
-            actionButton("", "#008840").apply {
-                layoutParams =
-                    LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    )
-                setOnClickListener { activateDevice() }
-            }
-        serialInput.doAfterTextChanged {
-            updateActivationInputState()
-        }
-        codeInput.doAfterTextChanged {
-            updateActivationInputState()
-        }
         authStatusView =
             bodyText("").apply {
                 setTextColor(Color.parseColor("#FFD060"))
@@ -771,18 +720,10 @@ class MainActivity : AppCompatActivity() {
             }
         activationCard.addView(activationTitleView)
         activationCard.addView(activationHintView)
-        activationCard.addView(serialInput)
-        activationCard.addView(serialInputErrorView)
-        activationCard.addView(spacer(dp(8)))
-        activationCard.addView(codeInput)
-        activationCard.addView(codeInputErrorView)
-        activationCard.addView(spacer(dp(12)))
-        activationCard.addView(activateButton)
         activationCard.addView(authStatusView)
         activationCard.addView(activationDetailsView)
         activationCard.visibility = View.GONE
         topContainer.addView(activationCard)
-        updateActivationInputState()
 
         pageTabsCard =
             surfaceCard().apply {
@@ -2491,7 +2432,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderActivationRequired(message: String? = null) {
         setTrainingBusyUi(false)
-        setActivationBusy(false)
         setActivationVisible(true)
         statusView.text = tr("activation_required")
         statusView.setTextColor(Color.parseColor("#FFB347"))
@@ -2691,120 +2631,6 @@ class MainActivity : AppCompatActivity() {
         reportView.addView(shareRow)
     }
 
-    private fun activateDevice() {
-        val serial = normalizeDigits(serialInput.text?.toString()).take(11)
-        val code = normalizeDigits(codeInput.text?.toString()).take(8)
-        if (serial.length != 11) {
-            setAuthStatusMessage("#FFB347", key = "serial_invalid")
-            return
-        }
-        if (code.length != 8) {
-            setAuthStatusMessage("#FFB347", key = "code_invalid")
-            return
-        }
-
-        activationJob?.cancel()
-        setActivationBusy(true)
-        setAuthStatusMessage("#FFD060", key = "activation_loading")
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.activate(
-                        serial = serial,
-                        code = code,
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    setActivationBusy(false)
-                    handleActivationResult(serial, result)
-                }
-            }
-    }
-
-    private fun handleActivationResult(
-        serial: String,
-        result: ActivationApiResult,
-    ) {
-        if (result.success && !result.activationToken.isNullOrBlank()) {
-            persistActivationState(result.serial ?: serial, result.activationToken)
-            codeInput.setText("")
-            renderIdle(authMessageKey = "activation_success_ready")
-            refreshCloudData(forceLeaderboard = true)
-            return
-        }
-
-        setAuthStatusFailure(result.reason, result.message)
-    }
-
-    private fun attemptAutoRestoreActivation(force: Boolean = false) {
-        if (isActivated()) {
-            return
-        }
-        if (autoRestoreAttempted && !force) {
-            return
-        }
-        autoRestoreAttempted = true
-        activationJob?.cancel()
-        setActivationBusy(true)
-        setAuthStatusMessage("#FFD060", fallback = activationRestoreLoadingMessage())
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.reactivateByDevice(
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    setActivationBusy(false)
-                    if (result.success && !result.activationToken.isNullOrBlank() && !result.serial.isNullOrBlank()) {
-                        persistActivationState(result.serial, result.activationToken)
-                        clearAuthStatusMessage()
-                        renderIdle()
-                        refreshCloudData(forceLeaderboard = true)
-                    } else if (result.reason == ActivationService.NETWORK_REASON) {
-                        setAuthStatusMessage("#FFD060", fallback = activationRestoreNetworkMessage())
-                    } else {
-                        clearAuthStatusMessage()
-                        renderActivationRequired()
-                    }
-                }
-            }
-    }
-
-    private fun verifyActivationInBackground() {
-        val state = activationState ?: return
-        activationJob?.cancel()
-        activationJob =
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result =
-                    activationService.check(
-                        serial = state.serial,
-                        activationToken = state.activationToken,
-                        installId = installId,
-                        deviceHash = deviceHash,
-                        appVersion = BuildConfig.VERSION_NAME,
-                    )
-                withContext(Dispatchers.Main) {
-                    if (result.success) {
-                        markActivationCheckedNow()
-                        refreshCloudData(forceLeaderboard = true)
-                        if (trainingJob?.isActive != true) {
-                            clearAuthStatusMessage()
-                            applyStaticTexts()
-                        }
-                    } else if (result.reason != ActivationService.NETWORK_REASON) {
-                        clearActivationState()
-                        setAuthStatusFailure(result.reason, result.message)
-                        renderActivationRequired(currentAuthStatusMessage())
-                        attemptAutoRestoreActivation(force = true)
-                    }
-                }
-            }
-    }
-
     private fun ensureInstallIdentity() {
         installId = prefs.getString(KEY_INSTALL_ID, null).orEmpty()
         if (installId.isBlank()) {
@@ -2860,41 +2686,12 @@ class MainActivity : AppCompatActivity() {
         persistActivationState(generateLocalUserSerial(), "local")
     }
 
-    private fun markActivationCheckedNow() {
-        val state = activationState ?: return
-        val now = System.currentTimeMillis()
-        activationState = state.copy(lastCheckAtEpochMs = now)
-        prefs.edit().putLong(KEY_AUTH_LAST_CHECK_AT, now).apply()
-    }
-
     private fun isActivated(): Boolean = true
 
     private fun generateLocalUserSerial(): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(installId.toByteArray(Charsets.UTF_8))
         val numeric = digest.joinToString("") { byte -> ((byte.toInt() and 0xFF) % 10).toString() }
         return numeric.take(11).padEnd(11, '0')
-    }
-
-    private fun authFailureMessageKey(reason: String?): String? =
-        when (reason) {
-            "serial_not_found" -> "activation_serial_not_found"
-            "invalid_code" -> "activation_invalid_code"
-            "already_bound" -> "activation_already_bound"
-            "not_activated" -> "activation_not_activated"
-            ActivationService.NETWORK_REASON -> "activation_network_error"
-            else -> null
-        }
-
-    private fun setAuthStatusFailure(
-        reason: String?,
-        fallbackMessage: String,
-    ) {
-        val key = authFailureMessageKey(reason)
-        setAuthStatusMessage(
-            colorHex = if (reason == ActivationService.NETWORK_REASON) "#FFD060" else "#FFB347",
-            key = key,
-            fallback = if (key == null) fallbackMessage.ifBlank { tr("activation_failed") } else null,
-        )
     }
 
     private fun setAuthStatusMessage(
@@ -2938,17 +2735,6 @@ class MainActivity : AppCompatActivity() {
             if (activated) tr("activation_ready_title") else tr("activation_title")
         activationHintView.text =
             if (activated) tr("activation_ready_subtitle") else tr("activation_subtitle")
-        serialInput.hint = tr("serial_hint")
-        codeInput.hint = tr("code_hint")
-        activateButton.text = tr("activate")
-
-        serialInput.visibility = if (activated) View.GONE else View.VISIBLE
-        codeInput.visibility = if (activated) View.GONE else View.VISIBLE
-        if (activated) {
-            serialInputErrorView.visibility = View.GONE
-            codeInputErrorView.visibility = View.GONE
-        }
-        activateButton.visibility = if (activated) View.GONE else View.VISIBLE
         activationDetailsView.visibility = if (activated) View.VISIBLE else View.GONE
 
         if (activated) {
@@ -2989,7 +2775,7 @@ class MainActivity : AppCompatActivity() {
     private fun localUserLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "用户ID"
-            AppLanguage.English -> "User ID"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "User ID"
             AppLanguage.French -> "ID utilisateur"
             AppLanguage.Thai -> "รหัสผู้ใช้"
         }
@@ -2997,7 +2783,7 @@ class MainActivity : AppCompatActivity() {
     private fun readyStatusLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "状态"
-            AppLanguage.English -> "Status"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Status"
             AppLanguage.French -> "Statut"
             AppLanguage.Thai -> "สถานะ"
         }
@@ -3005,7 +2791,7 @@ class MainActivity : AppCompatActivity() {
     private fun readyStatusValue(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "可用"
-            AppLanguage.English -> "Ready"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Ready"
             AppLanguage.French -> "Prêt"
             AppLanguage.Thai -> "พร้อมใช้งาน"
         }
@@ -3013,7 +2799,7 @@ class MainActivity : AppCompatActivity() {
     private fun lastSeenLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "最近同步"
-            AppLanguage.English -> "Last sync"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Last sync"
             AppLanguage.French -> "Derniere sync"
             AppLanguage.Thai -> "ซิงก์ล่าสุด"
         }
@@ -3024,24 +2810,6 @@ class MainActivity : AppCompatActivity() {
         }
         return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epochMs))
     }
-
-    private fun normalizeDigits(value: String?): String = value.orEmpty().filter { it.isDigit() }
-
-    private fun activationRestoreLoadingMessage(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "正在准备本机用户资料..."
-            AppLanguage.English -> "Preparing this device profile..."
-            AppLanguage.French -> "Preparation du profil de cet appareil..."
-            AppLanguage.Thai -> "กำลังเตรียมโปรไฟล์ของอุปกรณ์นี้..."
-        }
-
-    private fun activationRestoreNetworkMessage(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> "暂时无法同步本机用户资料，请联网后重试。"
-            AppLanguage.English -> "Unable to sync this device profile right now. Please connect to the internet and try again."
-            AppLanguage.French -> "Impossible de synchroniser ce profil pour le moment. Connectez-vous a Internet puis reessayez."
-            AppLanguage.Thai -> "ยังไม่สามารถซิงก์โปรไฟล์อุปกรณ์นี้ได้ โปรดเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง"
-        }
 
     private fun computeDeviceHash(): String {
         val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
@@ -3665,7 +3433,7 @@ class MainActivity : AppCompatActivity() {
         trainingHeroBadgeView.text =
             when (selectedLanguage) {
                 AppLanguage.Chinese -> "训练中心"
-                AppLanguage.English -> "TRAINING CENTER"
+                AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "TRAINING CENTER"
                 AppLanguage.French -> "CENTRE D'ENTRAÎNEMENT"
                 AppLanguage.Thai -> "ศูนย์ฝึก"
             }
@@ -3679,21 +3447,21 @@ class MainActivity : AppCompatActivity() {
                 !activated ->
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "准备好本机用户资料后，即可开启训练成长与段位挑战。"
-                        AppLanguage.English -> "Your device profile is getting ready for training progress and rank challenges."
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Your device profile is getting ready for training progress and rank challenges."
                         AppLanguage.French -> "Votre profil appareil se prepare pour la progression et les defis de rang."
                         AppLanguage.Thai -> "กำลังเตรียมโปรไฟล์อุปกรณ์สำหรับความก้าวหน้าและความท้าทายด้านระดับ"
                     }
                 stats != null ->
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "最佳30秒 ${stats.best30Hits} 次 · 最佳60秒 ${stats.best60Hits} 次 · 累计 ${stats.totalHits} 次"
-                        AppLanguage.English -> "Best 30s ${stats.best30Hits} · Best 60s ${stats.best60Hits} · ${stats.totalHits} total hits"
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Best 30s ${stats.best30Hits} · Best 60s ${stats.best60Hits} · ${stats.totalHits} total hits"
                         AppLanguage.French -> "Meilleur 30 s ${stats.best30Hits} · Meilleur 60 s ${stats.best60Hits} · ${stats.totalHits} frappes au total"
                         AppLanguage.Thai -> "ดีที่สุด 30 วินาที ${stats.best30Hits} · ดีที่สุด 60 วินาที ${stats.best60Hits} · สะสมทั้งหมด ${stats.totalHits} ครั้ง"
                     }
                 else ->
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "云端训练数据正在同步，稍后即可看到你的成绩、段位与成长进度。"
-                        AppLanguage.English -> "Cloud data is syncing. Your scores, rank, and growth progress will appear soon."
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Cloud data is syncing. Your scores, rank, and growth progress will appear soon."
                         AppLanguage.French -> "Les données cloud sont en cours de synchronisation. Vos scores et votre progression apparaîtront bientôt."
                         AppLanguage.Thai -> "กำลังซิงก์ข้อมูลคลาวด์ ไม่นานคุณจะเห็นคะแนน ระดับ และความคืบหน้า"
                     }
@@ -3715,7 +3483,7 @@ class MainActivity : AppCompatActivity() {
                 !activated ->
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "训练记录、成就、榜单与个人成长数据将自动同步"
-                        AppLanguage.English -> "Cloud records, achievements, leaderboards, and profile progress sync automatically."
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Cloud records, achievements, leaderboards, and profile progress sync automatically."
                         AppLanguage.French -> "Historique cloud, succes, classements et progression se synchronisent automatiquement."
                         AppLanguage.Thai -> "ประวัติ ความสำเร็จ กระดานจัดอันดับ และความก้าวหน้าจะซิงก์อัตโนมัติ"
                     }
@@ -3724,7 +3492,7 @@ class MainActivity : AppCompatActivity() {
                     val remaining = (tier.nextHits - best30).coerceAtLeast(0)
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "距离 ${tierLabelForKey(tier.nextKey)} 还差 $remaining 击"
-                        AppLanguage.English -> "$remaining hits to ${tierLabelForKey(tier.nextKey)}"
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "$remaining hits to ${tierLabelForKey(tier.nextKey)}"
                         AppLanguage.French -> "Encore $remaining frappes pour ${tierLabelForKey(tier.nextKey)}"
                         AppLanguage.Thai -> "อีก $remaining ครั้งจะถึง ${tierLabelForKey(tier.nextKey)}"
                     }
@@ -3732,7 +3500,7 @@ class MainActivity : AppCompatActivity() {
                 tier != null ->
                     when (selectedLanguage) {
                         AppLanguage.Chinese -> "已达到当前最高段位，继续保持你的拳击状态"
-                        AppLanguage.English -> "Top tier reached. Keep pushing your boxing pace."
+                        AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Top tier reached. Keep pushing your boxing pace."
                         AppLanguage.French -> "Rang maximal atteint. Continuez à maintenir votre rythme."
                         AppLanguage.Thai -> "ถึงระดับสูงสุดแล้ว รักษาจังหวะการฝึกของคุณต่อไป"
                     }
@@ -4294,11 +4062,17 @@ class MainActivity : AppCompatActivity() {
         english: String,
         french: String = english,
         thai: String = english,
+        spanish: String = english,
+        german: String = english,
+        korean: String = english,
     ): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> chinese
             AppLanguage.English -> english
             AppLanguage.French -> french
+            AppLanguage.Spanish -> spanish
+            AppLanguage.German -> german
+            AppLanguage.Korean -> korean
             AppLanguage.Thai -> thai
         }
 
@@ -5013,7 +4787,7 @@ class MainActivity : AppCompatActivity() {
         val pattern =
             when (selectedLanguage) {
                 AppLanguage.Chinese -> "MM-dd HH:mm"
-                AppLanguage.English -> "MMM dd, HH:mm"
+                AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "MMM dd, HH:mm"
                 AppLanguage.French -> "dd MMM HH:mm"
                 AppLanguage.Thai -> "dd/MM HH:mm"
             }
@@ -5117,7 +4891,7 @@ class MainActivity : AppCompatActivity() {
         val pattern =
             when (selectedLanguage) {
                 AppLanguage.Chinese -> "MM-dd HH:mm"
-                AppLanguage.English -> "MMM dd, HH:mm"
+                AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "MMM dd, HH:mm"
                 AppLanguage.French -> "dd MMM HH:mm"
                 AppLanguage.Thai -> "dd/MM HH:mm"
             }
@@ -5158,10 +4932,6 @@ class MainActivity : AppCompatActivity() {
         stopButton.alpha = if (isBusy) 1.0f else 0.5f
         settingsButton.isEnabled = !isBusy
         settingsButton.alpha = if (isBusy) 0.5f else 1.0f
-        activateButton.isEnabled = !isBusy && !activated && activationInputsValid
-        activateButton.alpha = if (activateButton.isEnabled) 1.0f else 0.6f
-        serialInput.isEnabled = !isBusy && !activated
-        codeInput.isEnabled = !isBusy && !activated
         for (index in 0 until modeGroup.childCount) {
             modeGroup.getChildAt(index).isEnabled = !isBusy
             modeGroup.getChildAt(index).alpha = if (isBusy) 0.6f else 1.0f
@@ -5174,45 +4944,6 @@ class MainActivity : AppCompatActivity() {
             activationCard.removeCallbacks(hideActivationCardRunnable)
         }
         activationCard.visibility = if (visible) View.VISIBLE else View.GONE
-    }
-
-    private fun setActivationBusy(isBusy: Boolean) {
-        val allowInput = !isBusy && !isActivated()
-        activateButton.isEnabled = allowInput && activationInputsValid
-        activateButton.alpha = if (activateButton.isEnabled) 1.0f else 0.6f
-        serialInput.isEnabled = allowInput
-        codeInput.isEnabled = allowInput
-    }
-
-    private fun updateActivationInputState() {
-        val serialDigits = normalizeDigits(serialInput.text?.toString())
-        val codeDigits = normalizeDigits(codeInput.text?.toString())
-        val serialRaw = serialInput.text?.toString().orEmpty()
-        val codeRaw = codeInput.text?.toString().orEmpty()
-        val serialOk = serialDigits.length == 11
-        val codeOk = codeDigits.length == 8
-
-        if (serialRaw.isEmpty() || serialOk) {
-            serialInputErrorView.text = ""
-            serialInputErrorView.visibility = View.GONE
-        } else {
-            serialInputErrorView.text = tr("serial_invalid")
-            serialInputErrorView.visibility = View.VISIBLE
-        }
-        if (codeRaw.isEmpty() || codeOk) {
-            codeInputErrorView.text = ""
-            codeInputErrorView.visibility = View.GONE
-        } else {
-            codeInputErrorView.text = tr("code_invalid")
-            codeInputErrorView.visibility = View.VISIBLE
-        }
-
-        activationInputsValid = serialOk && codeOk
-        val activated = isActivated()
-        val busy = activationJob?.isActive == true || trainingJob?.isActive == true
-        val enabled = !activated && !busy && activationInputsValid
-        activateButton.isEnabled = enabled
-        activateButton.alpha = if (enabled) 1.0f else 0.6f
     }
 
     private fun showFormalSettingsDialog() {
@@ -5267,6 +4998,27 @@ class MainActivity : AppCompatActivity() {
                 isChecked = selectedLanguage == AppLanguage.French
                 setTextColor(Color.WHITE)
             }
+        val esOption =
+            RadioButton(this).apply {
+                id = View.generateViewId()
+                text = tr("language_spanish")
+                isChecked = selectedLanguage == AppLanguage.Spanish
+                setTextColor(Color.WHITE)
+            }
+        val deOption =
+            RadioButton(this).apply {
+                id = View.generateViewId()
+                text = tr("language_german")
+                isChecked = selectedLanguage == AppLanguage.German
+                setTextColor(Color.WHITE)
+            }
+        val koOption =
+            RadioButton(this).apply {
+                id = View.generateViewId()
+                text = tr("language_korean")
+                isChecked = selectedLanguage == AppLanguage.Korean
+                setTextColor(Color.WHITE)
+            }
         val thOption =
             RadioButton(this).apply {
                 id = View.generateViewId()
@@ -5277,6 +5029,9 @@ class MainActivity : AppCompatActivity() {
         languageGroup.addView(zhOption)
         languageGroup.addView(enOption)
         languageGroup.addView(frOption)
+        languageGroup.addView(esOption)
+        languageGroup.addView(deOption)
+        languageGroup.addView(koOption)
         languageGroup.addView(thOption)
         languageCard.addView(languageGroup)
         dialogRoot.addView(languageCard)
@@ -5299,6 +5054,9 @@ class MainActivity : AppCompatActivity() {
                         when (languageGroup.checkedRadioButtonId) {
                             enOption.id -> AppLanguage.English
                             frOption.id -> AppLanguage.French
+                            esOption.id -> AppLanguage.Spanish
+                            deOption.id -> AppLanguage.German
+                            koOption.id -> AppLanguage.Korean
                             thOption.id -> AppLanguage.Thai
                             else -> AppLanguage.Chinese
                         },
@@ -6216,10 +5974,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun bluetoothSectionSubtitle(): String =
         localText(
-            "请先扫描 SENBALL# 设备，连接成功后即可开始训练。",
-            "Scan for a SENBALL# device first. Training is available after connection.",
-            "Scannez d'abord un appareil SENBALL#. L'entraînement sera disponible après connexion.",
-            "โปรดสแกนอุปกรณ์ SENBALL# ก่อน เมื่อเชื่อมต่อแล้วจึงเริ่มฝึกได้",
+            "设备静止 1 分钟后会自动进入低功耗状态，连接蓝牙前请先击打一下设备以唤醒蓝牙，避免出现蓝牙设备搜索不到的情况",
+            "The device enters low-power mode after about 1 minute at rest. Tap it once before scanning to wake it.",
+            "L'appareil passe en basse consommation après environ 1 minute d'immobilité. Frappez-le une fois avant de scanner pour le réveiller.",
+            "อุปกรณ์จะเข้าสู่โหมดประหยัดพลังงานเมื่ออยู่นิ่งประมาณ 1 นาที ก่อนสแกนให้ตีอุปกรณ์หนึ่งครั้งเพื่อปลุกก่อน",
         )
 
     private fun bluetoothScanLabel(): String =
@@ -6346,22 +6104,28 @@ class MainActivity : AppCompatActivity() {
                 orientation = RadioGroup.VERTICAL
                 setPadding(0, dp(4), 0, dp(16))
             }
-        val zhOption =
-            RadioButton(this).apply {
-                id = View.generateViewId()
-                text = tr("language_chinese")
-                isChecked = selectedLanguage == AppLanguage.Chinese
-                setTextColor(Color.WHITE)
-            }
-        val enOption =
-            RadioButton(this).apply {
-                id = View.generateViewId()
-                text = "English"
-                isChecked = selectedLanguage == AppLanguage.English
-                setTextColor(Color.WHITE)
-            }
-        languageGroup.addView(zhOption)
-        languageGroup.addView(enOption)
+        val languageOptions =
+            listOf(
+                AppLanguage.Chinese to tr("language_chinese"),
+                AppLanguage.English to tr("language_english"),
+                AppLanguage.French to tr("language_french"),
+                AppLanguage.Spanish to tr("language_spanish"),
+                AppLanguage.German to tr("language_german"),
+                AppLanguage.Korean to tr("language_korean"),
+                AppLanguage.Thai to tr("language_thai"),
+            )
+        val languageOptionIds = mutableMapOf<Int, AppLanguage>()
+        languageOptions.forEach { (language, label) ->
+            val option =
+                RadioButton(this).apply {
+                    id = View.generateViewId()
+                    text = label
+                    isChecked = selectedLanguage == language
+                    setTextColor(Color.WHITE)
+                }
+            languageOptionIds[option.id] = language
+            languageGroup.addView(option)
+        }
         dialogRoot.addView(languageGroup)
 
         val dialog =
@@ -6374,12 +6138,7 @@ class MainActivity : AppCompatActivity() {
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 applyLanguageAndSensitivitySettings(
-                    language =
-                        if (languageGroup.checkedRadioButtonId == enOption.id) {
-                            AppLanguage.English
-                    } else {
-                        AppLanguage.Chinese
-                    },
+                    language = languageOptionIds[languageGroup.checkedRadioButtonId] ?: AppLanguage.Chinese,
                     refreshCloud = false,
                 )
                 dialog.dismiss()
@@ -6519,9 +6278,6 @@ class MainActivity : AppCompatActivity() {
         settingsButton.contentDescription = tr("settings")
         quietIconView.contentDescription = tr("keep_quiet")
         refreshActivationCardState()
-        if (::serialInput.isInitialized && ::codeInput.isInitialized) {
-            updateActivationInputState()
-        }
         refreshHomePageVisibility()
         if (latestReport == null) {
             renderEmptyReport()
@@ -6595,7 +6351,7 @@ class MainActivity : AppCompatActivity() {
     private fun shareTrainingLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "分享战报"
-            AppLanguage.English -> "Share Report"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Share Report"
             AppLanguage.French -> "Partager"
             AppLanguage.Thai -> "แชร์"
         }
@@ -6603,7 +6359,7 @@ class MainActivity : AppCompatActivity() {
     private fun shareAchievementsLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "分享荣誉"
-            AppLanguage.English -> "Share Honors"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Share Honors"
             AppLanguage.French -> "Partager"
             AppLanguage.Thai -> "แชร์"
         }
@@ -6611,7 +6367,7 @@ class MainActivity : AppCompatActivity() {
     private fun shareLeaderboardLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "分享排名"
-            AppLanguage.English -> "Share Rank"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Share Rank"
             AppLanguage.French -> "Partager"
             AppLanguage.Thai -> "แชร์"
         }
@@ -7567,7 +7323,7 @@ class MainActivity : AppCompatActivity() {
     private fun displayCountdownStatus(value: Int): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "${value} 秒后开始..."
-            AppLanguage.English -> "Starting in $value..."
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Starting in $value..."
             AppLanguage.French -> "Départ dans $value..."
             AppLanguage.Thai -> "เริ่มใน $value..."
         }
@@ -7575,7 +7331,7 @@ class MainActivity : AppCompatActivity() {
     private fun displayGoCue(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "开始"
-            AppLanguage.English -> "Go"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Go"
             AppLanguage.French -> "Go"
             AppLanguage.Thai -> "ไป"
         }
@@ -7583,7 +7339,7 @@ class MainActivity : AppCompatActivity() {
     private fun displayGoLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "开始"
-            AppLanguage.English -> "GO"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "GO"
             AppLanguage.French -> "GO"
             AppLanguage.Thai -> "ไป"
         }
@@ -7598,7 +7354,7 @@ class MainActivity : AppCompatActivity() {
                     TrainingMode.Burst15 -> "15 秒爆发"
                 }
 
-            AppLanguage.English ->
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean ->
                 when (mode) {
                     TrainingMode.Seconds30 -> "30 sec"
                     TrainingMode.Seconds60 -> "60 sec"
@@ -7627,7 +7383,7 @@ class MainActivity : AppCompatActivity() {
         val seconds = remainingMillis.coerceAtLeast(0L) / 100L / 10.0f
         return when (selectedLanguage) {
             AppLanguage.Chinese -> String.format(Locale.US, "剩余 %.1f 秒", seconds)
-            AppLanguage.English -> String.format(Locale.US, "%.1fs left", seconds)
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> String.format(Locale.US, "%.1fs left", seconds)
             AppLanguage.French -> String.format(Locale.US, "%.1fs restantes", seconds)
             AppLanguage.Thai -> String.format(Locale.US, "เหลือ %.1f วินาที", seconds)
         }
@@ -7690,53 +7446,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun preferredTtsLocales(): LinkedHashSet<Locale> =
-        when (selectedLanguage) {
-            AppLanguage.Chinese ->
-                linkedSetOf(
-                    Locale.CHINA,
-                    Locale.SIMPLIFIED_CHINESE,
-                    Locale.CHINESE,
-                    Locale.US,
-                    Locale.ENGLISH,
-                )
-
-            AppLanguage.English ->
-                linkedSetOf(
-                    Locale.US,
-                    Locale.UK,
-                    Locale.ENGLISH,
-                )
-
-            AppLanguage.French ->
-                linkedSetOf(
-                    Locale.FRANCE,
-                    Locale.FRENCH,
-                    Locale.CANADA_FRENCH,
-                    Locale.US,
-                    Locale.ENGLISH,
-                )
-
-            AppLanguage.Thai ->
-                linkedSetOf(
-                    Locale("th", "TH"),
-                    Locale("th"),
-                    Locale.US,
-                    Locale.ENGLISH,
-                )
-        }
-
-    private fun selectedSpeechLanguageCode(): String =
-        when (selectedLanguage) {
-            AppLanguage.Chinese -> Locale.CHINESE.language
-            AppLanguage.English -> Locale.ENGLISH.language
-            AppLanguage.French -> Locale.FRENCH.language
-            AppLanguage.Thai -> "th"
+        if (selectedLanguage == AppLanguage.Chinese) {
+            linkedSetOf(
+                Locale.CHINA,
+                Locale.SIMPLIFIED_CHINESE,
+                Locale.CHINESE,
+            )
+        } else {
+            linkedSetOf(
+                Locale.US,
+                Locale.UK,
+                Locale.ENGLISH,
+            )
         }
 
     private fun usesEnglishSpeechFallback(): Boolean {
         val currentLanguage = ttsLocaleInUse?.language ?: return false
-        return selectedLanguage != AppLanguage.English &&
-            !currentLanguage.equals(selectedSpeechLanguageCode(), ignoreCase = true) &&
+        return selectedLanguage != AppLanguage.Chinese &&
             currentLanguage.equals(Locale.ENGLISH.language, ignoreCase = true)
     }
 
@@ -7797,30 +7523,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun spokenCueText(text: String): String =
-        when {
-            usesEnglishSpeechFallback() ->
-                when (text) {
-                    displayGoCue(), displayGoLabel(), "开始", "ไป", "GO", "Go" -> "Go"
-                    else -> text
-                }
-
-            selectedLanguage == AppLanguage.French ->
-                when (text) {
-                    displayGoCue(), displayGoLabel() -> "Partez"
-                    else -> text
-                }
-
-            selectedLanguage == AppLanguage.Thai ->
-                when (text) {
-                    displayGoCue(), displayGoLabel() -> "เริ่ม"
-                    else -> text
-                }
-
-            else ->
-                when (text) {
-                    displayGoCue(), displayGoLabel() -> if (selectedLanguage == AppLanguage.Chinese) "开始" else "Go"
-                    else -> text
-                }
+        when (text) {
+            displayGoCue(),
+            displayGoLabel(),
+            "开始",
+            "ไป",
+            "GO",
+            "Go",
+            "Partez",
+            "เริ่ม" -> if (selectedLanguage == AppLanguage.Chinese) "开始" else "Go"
+            else -> text
         }
 
     private var countPulseAnimator: AnimatorSet? = null
@@ -7849,6 +7561,9 @@ class MainActivity : AppCompatActivity() {
             AppLanguage.Chinese -> tr("language_chinese")
             AppLanguage.English -> tr("language_english")
             AppLanguage.French -> tr("language_french")
+            AppLanguage.Spanish -> tr("language_spanish")
+            AppLanguage.German -> tr("language_german")
+            AppLanguage.Korean -> tr("language_korean")
             AppLanguage.Thai -> tr("language_thai")
         }
 
@@ -7866,6 +7581,9 @@ class MainActivity : AppCompatActivity() {
         when (Locale.getDefault().language.lowercase(Locale.US)) {
             "zh" -> AppLanguage.Chinese
             "fr" -> AppLanguage.French
+            "es" -> AppLanguage.Spanish
+            "de" -> AppLanguage.German
+            "ko" -> AppLanguage.Korean
             "th" -> AppLanguage.Thai
             else -> AppLanguage.English
         }
@@ -7873,7 +7591,7 @@ class MainActivity : AppCompatActivity() {
     private fun profileSubtitleText(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "账号状态、语言与训练概览"
-            AppLanguage.English -> "Account status, language, and training overview"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Account status, language, and training overview"
             AppLanguage.French -> "Statut du compte, langue et aperçu d'entraînement"
             AppLanguage.Thai -> "สถานะบัญชี ภาษา และภาพรวมการฝึก"
         }
@@ -7881,7 +7599,7 @@ class MainActivity : AppCompatActivity() {
     private fun historySubtitleText(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "最近训练结果会自动同步到云端"
-            AppLanguage.English -> "Recent sessions are synced to the cloud automatically"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Recent sessions are synced to the cloud automatically"
             AppLanguage.French -> "Les dernières séances sont synchronisées automatiquement"
             AppLanguage.Thai -> "ผลการฝึกล่าสุดจะซิงก์ขึ้นคลาวด์อัตโนมัติ"
         }
@@ -7889,7 +7607,7 @@ class MainActivity : AppCompatActivity() {
     private fun leaderboardSubtitleText(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "查看 30 秒与 60 秒模式下的最佳成绩"
-            AppLanguage.English -> "See the best scores for 30-second and 60-second modes"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "See the best scores for 30-second and 60-second modes"
             AppLanguage.French -> "Consultez les meilleurs scores en 30 s et 60 s"
             AppLanguage.Thai -> "ดูคะแนนสูงสุดของโหมด 30 และ 60 วินาที"
         }
@@ -7897,7 +7615,7 @@ class MainActivity : AppCompatActivity() {
     private fun avatarChooseButtonLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "选择图片"
-            AppLanguage.English -> "Choose Photo"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Choose Photo"
             AppLanguage.French -> "Choisir une photo"
             AppLanguage.Thai -> "เลือกรูปภาพ"
         }
@@ -7905,7 +7623,7 @@ class MainActivity : AppCompatActivity() {
     private fun avatarClearButtonLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "移除图片"
-            AppLanguage.English -> "Remove Photo"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Remove Photo"
             AppLanguage.French -> "Supprimer la photo"
             AppLanguage.Thai -> "ลบรูปภาพ"
         }
@@ -7913,7 +7631,7 @@ class MainActivity : AppCompatActivity() {
     private fun avatarImageHintText(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "可从手机相册选择头像图片，未选择时使用颜色头像。"
-            AppLanguage.English -> "Choose an avatar photo from this phone, or keep the color avatar."
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Choose an avatar photo from this phone, or keep the color avatar."
             AppLanguage.French -> "Choisissez une photo sur ce téléphone ou gardez l'avatar coloré."
             AppLanguage.Thai -> "เลือกรูปโปรไฟล์จากโทรศัพท์ หรือใช้รูปแบบสีเดิม"
         }
@@ -7921,7 +7639,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerInfoButtonLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "联系我们"
-            AppLanguage.English -> "Contact Us"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Contact Us"
             AppLanguage.French -> "Nous contacter"
             AppLanguage.Thai -> "ติดต่อเรา"
         }
@@ -7929,7 +7647,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerInfoPageTitle(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "关于我们"
-            AppLanguage.English -> "About Us"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "About Us"
             AppLanguage.French -> "À propos"
             AppLanguage.Thai -> "เกี่ยวกับเรา"
         }
@@ -7937,7 +7655,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerInfoPageSubtitle(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "开发者信息、联系邮箱及平台协议入口"
-            AppLanguage.English -> "Developer details, contact email and policy links"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Developer details, contact email and policy links"
             AppLanguage.French -> "Informations développeur, e-mail et accès aux politiques"
             AppLanguage.Thai -> "ข้อมูลผู้พัฒนา อีเมลติดต่อ และลิงก์นโยบาย"
         }
@@ -7945,7 +7663,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerCompanySectionTitle(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "公司信息"
-            AppLanguage.English -> "Company"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Company"
             AppLanguage.French -> "Entreprise"
             AppLanguage.Thai -> "ข้อมูลบริษัท"
         }
@@ -7953,7 +7671,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerContactSectionTitle(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "联系方式"
-            AppLanguage.English -> "Contact"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Contact"
             AppLanguage.French -> "Contact"
             AppLanguage.Thai -> "ช่องทางติดต่อ"
         }
@@ -7961,7 +7679,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerExtrasSectionTitle(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "附加信息"
-            AppLanguage.English -> "More Info"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "More Info"
             AppLanguage.French -> "Informations"
             AppLanguage.Thai -> "ข้อมูลเพิ่มเติม"
         }
@@ -7969,7 +7687,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerCompanyName(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> DEVELOPER_COMPANY_NAME_ZH
-            AppLanguage.English -> DEVELOPER_COMPANY_NAME_EN
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> DEVELOPER_COMPANY_NAME_EN
             AppLanguage.French -> DEVELOPER_COMPANY_NAME_FR
             AppLanguage.Thai -> DEVELOPER_COMPANY_NAME_TH
         }
@@ -7977,7 +7695,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerCompanyDescription(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "专注于智能拳击产品与运动数据体验"
-            AppLanguage.English -> "Focused on smart sensor ball products and sports data experiences"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Focused on smart sensor ball products and sports data experiences"
             AppLanguage.French -> "Spécialisée dans les produits de balle à capteurs intelligents et l'expérience des données sportives"
             AppLanguage.Thai -> "มุ่งเน้นผลิตภัณฑ์ลูกบอลเซ็นเซอร์อัจฉริยะและประสบการณ์ข้อมูลการกีฬา"
         }
@@ -7985,7 +7703,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerEmailLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "邮箱"
-            AppLanguage.English -> "Email"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Email"
             AppLanguage.French -> "E-mail"
             AppLanguage.Thai -> "อีเมล"
         }
@@ -7993,7 +7711,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerEmailActionLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "发送邮件"
-            AppLanguage.English -> "Send Email"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Send Email"
             AppLanguage.French -> "Envoyer un e-mail"
             AppLanguage.Thai -> "ส่งอีเมล"
         }
@@ -8001,7 +7719,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerVersionLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "当前 APP 版本号"
-            AppLanguage.English -> "App Version"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "App Version"
             AppLanguage.French -> "Version de l'application"
             AppLanguage.Thai -> "เวอร์ชันแอป"
         }
@@ -8009,7 +7727,7 @@ class MainActivity : AppCompatActivity() {
     private fun privacyPolicyEntryLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "隐私政策"
-            AppLanguage.English -> "Privacy Policy"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Privacy Policy"
             AppLanguage.French -> "Politique de confidentialité"
             AppLanguage.Thai -> "นโยบายความเป็นส่วนตัว"
         }
@@ -8017,7 +7735,7 @@ class MainActivity : AppCompatActivity() {
     private fun userAgreementEntryLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "用户协议"
-            AppLanguage.English -> "User Agreement"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "User Agreement"
             AppLanguage.French -> "Accord utilisateur"
             AppLanguage.Thai -> "ข้อตกลงผู้ใช้"
         }
@@ -8025,7 +7743,7 @@ class MainActivity : AppCompatActivity() {
     private fun developerDocumentHint(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "可查看本应用当前版本对应的隐私政策与用户协议。"
-            AppLanguage.English -> "Review the privacy policy and user agreement for the current app version."
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Review the privacy policy and user agreement for the current app version."
             AppLanguage.French -> "Consultez la politique de confidentialité et l'accord utilisateur de cette version."
             AppLanguage.Thai -> "ดูนโยบายความเป็นส่วนตัวและข้อตกลงผู้ใช้ของแอปเวอร์ชันนี้"
         }
@@ -8035,6 +7753,9 @@ class MainActivity : AppCompatActivity() {
             AppLanguage.Chinese -> "privacy_policy_zh.txt"
             AppLanguage.English -> "privacy_policy_en.txt"
             AppLanguage.French -> "privacy_policy_fr.txt"
+            AppLanguage.Spanish -> "privacy_policy_es.txt"
+            AppLanguage.German -> "privacy_policy_de.txt"
+            AppLanguage.Korean -> "privacy_policy_ko.txt"
             AppLanguage.Thai -> "privacy_policy_th.txt"
         }
 
@@ -8043,13 +7764,16 @@ class MainActivity : AppCompatActivity() {
             AppLanguage.Chinese -> "user_agreement_zh.txt"
             AppLanguage.English -> "user_agreement_en.txt"
             AppLanguage.French -> "user_agreement_fr.txt"
+            AppLanguage.Spanish -> "user_agreement_es.txt"
+            AppLanguage.German -> "user_agreement_de.txt"
+            AppLanguage.Korean -> "user_agreement_ko.txt"
             AppLanguage.Thai -> "user_agreement_th.txt"
         }
 
     private fun developerDocumentUnavailableText(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "当前文档暂不可用，请稍后重试。"
-            AppLanguage.English -> "This document is currently unavailable. Please try again later."
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "This document is currently unavailable. Please try again later."
             AppLanguage.French -> "Ce document n'est pas disponible pour le moment."
             AppLanguage.Thai -> "เอกสารนี้ยังไม่พร้อมใช้งานในขณะนี้"
         }
@@ -8057,7 +7781,7 @@ class MainActivity : AppCompatActivity() {
     private fun closeLabel(): String =
         when (selectedLanguage) {
             AppLanguage.Chinese -> "关闭"
-            AppLanguage.English -> "Close"
+            AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Close"
             AppLanguage.French -> "Fermer"
             AppLanguage.Thai -> "ปิด"
         }
@@ -8698,7 +8422,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             when (selectedLanguage) {
                 AppLanguage.Chinese -> "太棒了！$title！继续保持，向更强进发！"
-                AppLanguage.English -> "Amazing! $title! Keep going strong!"
+                AppLanguage.English, AppLanguage.Spanish, AppLanguage.German, AppLanguage.Korean -> "Amazing! $title! Keep going strong!"
                 AppLanguage.French -> "Magnifique ! $title ! Continuez comme ça !"
                 AppLanguage.Thai -> "ยอดเยี่ยม! $title! ลุยต่อไป!"
             }
@@ -9487,6 +9211,9 @@ class MainActivity : AppCompatActivity() {
             AppLanguage.Chinese -> Locale.SIMPLIFIED_CHINESE
             AppLanguage.English -> Locale.US
             AppLanguage.French -> Locale.FRANCE
+            AppLanguage.Spanish -> Locale("es", "ES")
+            AppLanguage.German -> Locale.GERMANY
+            AppLanguage.Korean -> Locale.KOREA
             AppLanguage.Thai -> Locale("th", "TH")
         }
 
@@ -9545,21 +9272,6 @@ class MainActivity : AppCompatActivity() {
             setTypeface(Typeface.DEFAULT_BOLD)
             setTextColor(Color.parseColor("#FFF8E8"))
             setPadding(0, 0, 0, dp(6))
-        }
-
-    private fun activationInput(hint: String): EditText =
-        EditText(this).apply {
-            this.hint = hint
-            inputType = InputType.TYPE_CLASS_NUMBER
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.parseColor("#4A8A5A"))
-            background = roundedBackground("#061410", "#1A3A24", 12)
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            layoutParams =
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
         }
 
     private fun bodyText(text: String): TextView =
